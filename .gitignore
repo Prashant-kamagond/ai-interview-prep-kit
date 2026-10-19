@@ -1,0 +1,16 @@
+node_modules/
+dist/
+.next/
+coverage/
+*.tsbuildinfo
+.env
+.env.*
+!.env.example
+*.log
+.DS_Store
+playwright-report/
+test-results/
+# batch output produced by `npm run evaluate`
+/kits.json
+/out/
+apps/web/next-env.d.ts
