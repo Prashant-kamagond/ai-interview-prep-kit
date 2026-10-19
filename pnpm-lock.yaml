@@ -7,6 +7,10 @@ settings:
 importers:
 
   .:
+    dependencies:
+      '@trao/pipeline':
+        specifier: workspace:*
+        version: link:packages/pipeline
     devDependencies:
       '@eslint/js':
         specifier: ^10.0.1
@@ -145,6 +149,9 @@ importers:
       parse5:
         specifier: ^8.0.1
         version: 8.0.1
+      zod:
+        specifier: ^4.6.7
+        version: 4.6.7
 
 packages:
 

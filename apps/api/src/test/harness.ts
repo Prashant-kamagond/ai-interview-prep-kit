@@ -183,6 +183,9 @@ export function controllableRunner() {
     release = resolve;
     fail = reject;
   });
+  // A test may fail() before the runner reaches `await gate`. Mark the promise handled so that
+  // is not an unhandled rejection; the runner still observes the rejection when it awaits it.
+  gate.catch(() => undefined);
   const runner: JobRunner = {
     async run(input, ctx) {
       calls.push(input);

@@ -127,3 +127,106 @@ important ones.
   Phase 1). File edits now go through the file tools, or build strings from character codes.
 - **Live checks changed the code twice** (size limit, discussion precision): fixtures alone would have
   shipped both defects.
+
+## Phase 5
+
+### Provider verification (2026-10-19)
+
+Google Gemini via Google AI Studio, behind a provider-neutral adapter, as instructed. Candidate model
+`gemini-3.8-flash`. Everything below was read from the official documentation on **2026-10-19**, except
+where it says it was observed live.
+
+| Question                      | Finding                                                                                                                                                                                                                                                                                                                                                              | Source                                                                                       |
+| ----------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------- |
+| Model exists and is stable?   | `gemini-3.8-flash` is listed as **Stable** (marked new); the models page was last updated 2026-10-13. Preview models get at least 2 weeks' notice; the page gives no shutdown date for 3.8.                                                                                                                                                                          | https://ai.google.dev/gemini-api/docs/models                                                 |
+| Model limits and capabilities | Input limit **1,048,576** tokens, output limit **65,536**; structured outputs supported; thinking levels low/medium/high (**"minimal" is rejected**, confirmed live); page updated 2026-09-02.                                                                                                                                                                       | https://ai.google.dev/gemini-api/docs/models/gemini-3.8-flash                                |
+| Free tier?                    | The **Standard** tier lists a Free Tier "free of charge" for input and output tokens. Batch and Flex are not available on the free tier.                                                                                                                                                                                                                             | https://ai.google.dev/gemini-api/docs/pricing                                                |
+| Quotas?                       | **Not published per model.** Limits are RPM, input TPM and RPD, per project, resetting at midnight Pacific; "can be viewed in Google AI Studio"; "not guaranteed". So **no quota number is hard-coded anywhere**; check yours in AI Studio.                                                                                                                          | https://ai.google.dev/gemini-api/docs/rate-limits                                            |
+| Data use                      | **Free tier: content is used to improve Google's products and human reviewers may read inputs and outputs; "Do not submit sensitive, confidential, or personal information."** Paid tier: not used for improvement; logged for a limited time for abuse prevention. EEA/CH/UK: paid terms apply to all services.                                                     | https://ai.google.dev/gemini-api/terms and the pricing page                                  |
+| Structured output             | JSON Schema subset: `type`, `title`, `description`, `properties`, `required`, `additionalProperties`, `enum`, `format` (date-time/date/time), `minimum`, `maximum`, `items`, `prefixItems`, `minItems`, `maxItems`; "null" in a type array for nullability. Output is syntactically valid JSON but **can still be semantically wrong**: validate in the application. | https://ai.google.dev/gemini-api/docs/structured-output                                      |
+| Error behaviour               | Documented table with `rate_limit_exceeded`/`too_many_requests`/`quota_exceeded` (429), `service_unavailable` (503), `deadline_exceeded` (504), `api_error` (500), etc.; recommended handling is exponential backoff with jitter; **`Retry-After` is not documented**.                                                                                               | https://ai.google.dev/gemini-api/docs/api-errors and /troubleshooting                        |
+| Endpoint contract             | Interactions API `POST /v1/interactions` (also `/v1beta`): `model`, `input`, `system_instruction`, `generation_config{max_output_tokens, thinking_level}`, `response_format{type,mime_type,schema}`, `store`; text at `steps[type=model_output].content[type=text].text`. `generateContent` is still documented and shows no deprecation.                            | https://ai.google.dev/api/interactions-api-v1 and https://ai.google.dev/api/generate-content |
+
+### What was observed live, not just read
+
+- **Success path (one call with your key):** exactly the documented shape. `status: "completed"`, a `thought`
+  step, then `model_output` with the JSON text; `usage` has `total_input/output/thought_tokens`; no
+  `Retry-After` header.
+- **A bad key is HTTP 400 `INVALID_ARGUMENT` with `reason: API_KEY_INVALID`, not 401**, and the Interactions
+  endpoints sometimes wrap errors in a JSON array. The adapter classifies auth failures by `reason`, not
+  only by status, and unwraps arrays. Both captured bodies are used as test fixtures.
+- **Error codes can be strings** (`too_many_requests`), not numbers.
+- **Latency has a long tail:** the same trivial request took 92 s, 137 s and 4.4 s on `gemini-3.8-flash`; for
+  comparison `gemini-3.5-flash-lite` took 2.5 s and `gemini-3.1-flash-lite` 1.7 s; `gemini-3.6-flash`
+  answered **429 `too_many_requests`** ("Your project has exceeded a quota"). Those are single samples from
+  one project on one afternoon, not benchmarks. **The model was not switched**: the comparison is evidence for
+  you to weigh, and the model is one environment variable.
+
+### Decisions
+
+- **Interactions API v1, not `generateContent`.** Every field the pipeline needs (`response_format`,
+  `thinking_level`, `max_output_tokens`, `system_instruction`, `store`) was readable in the official text;
+  for `generateContent` the thinking configuration was not. `store: false` asks Google not to retain the
+  interaction. The API version is a constructor option.
+- **Short per-attempt timeout (60 s) plus retry**, because of the latency tail above: abandoning a stuck call
+  and retrying recovered in seconds where waiting would have cost minutes. This spends extra requests, so it
+  is bounded (3 retries) and configurable.
+- **`thinking_level: low`** (the lowest the model accepts) to keep latency and output-token use down.
+- **The key travels only in the `x-goog-api-key` header**: never in the URL, body, logs, events or error
+  messages (tested, including a provider that echoes the key back). It lives in a non-enumerable property of
+  the config object, so JSON, `console.log` and `util.inspect` cannot show it. A missing or malformed key is a
+  `MISSING_CREDENTIALS` configuration error and no request is made. Blank env values count as unset.
+- **The model never supplies ids, and never decides coverage.** Application code assigns `r1…`, `q1…`, `f1…`
+  and the deterministic checker from Phase 2 decides what is covered.
+- **Every model item must be grounded.** A requirement is kept only if its quote appears in the posting; a
+  brief claim only if its quote appears on the page it cites; ids must exist and be in the category's scope.
+  Ungrounded items are dropped and counted, never repaired by guessing. (The repair call is reserved for
+  structural problems: invalid JSON, schema violations, truncation.)
+- **The posting's own wording overrides the model on must vs nice** ("Nice to have:" headings, "is a plus",
+  "required"), because that distinction is worth the most points and is checkable from the text.
+- **Separate calls per category with separate requirement subsets** (technical/domain vs behavioural), and
+  referenced ids outside a category's scope are dropped, so a technical question cannot claim to cover a
+  behavioural requirement.
+- **`coverage.passes` counts coverage checks run**, which equals generation passes (the draft, then each gap
+  round). Budget 3 (draft plus two rounds); documented in `docs/architecture.md`. A round must shrink the
+  **must-have** gaps to earn another pass.
+- **Quota exhaustion fails fast and degrades.** Once the provider says the quota is gone, later calls are not
+  sent, and a partial, honestly flagged kit is returned. Setup errors (key, model, request shape) stop the run.
+  Failure of the role extraction is terminal because nothing can be built without it.
+- **Untrusted text is fenced, and fencing is not the defence.** Job postings, pages and forum posts go only
+  inside nonce-delimited blocks that the content cannot close; the system prompt says to treat them as data.
+  The real defence is validation: an obeyed injection can only produce output that still has to pass grounding.
+- **Privacy:** because the free tier may use and have humans read content, the README and `.env.example` say
+  so plainly, and pasted job descriptions should not contain confidential or personal data.
+
+### The quota discovery (and what it changed)
+
+The third live run met a real limit: `limit: 20 requests per day on Free Tier` for `gemini-3.8-flash` on
+this project (observed 2026-10-19; Google documents no per-model number). Consequences recorded here so
+they are not lost:
+
+- **The five-case 15-minute requirement is blocked by quota, not by speed, on this model's free tier.** About
+  7 requests a case against 20 a day is about 2 cases. The options (billing at roughly $0.025 a case, a model
+  with a larger free allowance, fewer requests per case) are in `docs/architecture.md`; **none was taken**,
+  because each is the user's decision (cost, or a different model).
+- **A retry-policy bug found by the real service:** a 429 asking for a 20-hour wait was treated as a rate
+  limit and the wait was capped to 60 s, so the pipeline retried a hopeless call for about 7 minutes. Fixed
+  test-first: a `Retry-After` beyond the limit means give up, and day-scale 429s are `QUOTA_EXHAUSTED`. The
+  captured 429 body is a test fixture. Verified live afterwards (0.6 s, one request, a message with the reset time).
+- **I used up your free quota while measuring.** Four live runs and several probes consumed the day's 20
+  requests on `gemini-3.8-flash`, so the model is unavailable for you until about 20 hours after
+  2026-10-19 16:3x local time. That cost is real and was not asked for; the runs were the "explicitly labelled
+  smoke test" the brief allowed, but I should have counted requests against a possible daily cap sooner.
+
+### Defects found by measuring (and fixed)
+
+- **Two survivors of mutation checking** exposed weak tests: the prompt's two defusing layers were covered by
+  one scenario, and the `INVALID_KIT` guard could not be triggered. Each now has its own test, plus a
+  validator seam.
+- **A tightened "progress" rule:** the first loop counted covering only a nice-to-have as progress and
+  burned the last pass while a must-have stayed open. Progress now means the must-have gaps shrank.
+- **An intermittent unhandled rejection in my own Phase 3 integration helper** (`controllableRunner`): a
+  rejection issued before the runner started waiting had no handler. Reproduced deterministically first
+  (all assertions pass, run exits 1), then fixed with one line, and pinned by a unit test.
+- **A shell-quoting slip repeated:** typing `'\\n'` in a heredoc produced a broken test file. The earlier
+  note applies: file edits go through the file tools, and I scanned for control characters afterwards.

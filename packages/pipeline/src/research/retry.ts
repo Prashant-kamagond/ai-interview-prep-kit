@@ -1,5 +1,23 @@
 import type { Clock } from './clock.js';
-import { FetchError } from './errors.js';
+
+/**
+ * The contract withRetry understands: an error says whether it is worth retrying, may carry a
+ * server-requested delay, and records how many attempts were made. FetchError (network research)
+ * and LlmError (model calls) both satisfy it.
+ */
+export interface RetryableErrorLike extends Error {
+  retryable: boolean;
+  retryAfterMs?: number | undefined;
+  attempts: number;
+}
+
+export function isRetryableErrorLike(err: unknown): err is RetryableErrorLike {
+  return (
+    err instanceof Error &&
+    typeof (err as { retryable?: unknown }).retryable === 'boolean' &&
+    typeof (err as { attempts?: unknown }).attempts === 'number'
+  );
+}
 
 export interface RetryOptions {
   /** Retries after the first attempt, so total attempts are at most `maxRetries + 1`. */
@@ -13,6 +31,8 @@ export interface RetryOptions {
   random?: () => number;
   /** Absolute time (clock.now() scale) after which no further retry is started. */
   deadline?: number;
+  /** Called just before each backoff wait, for observability. */
+  onRetry?: (info: { attempt: number; delayMs: number; error: RetryableErrorLike }) => void;
 }
 
 /**
@@ -31,18 +51,20 @@ export async function withRetry<T>(
     try {
       return await fn(attempt);
     } catch (err) {
-      if (!(err instanceof FetchError)) throw err;
+      if (!isRetryableErrorLike(err)) throw err;
       err.attempts = attempt;
       if (!err.retryable || attempt > options.maxRetries) throw err;
 
       const backoff = Math.min(options.maxDelayMs, options.baseDelayMs * 2 ** (attempt - 1));
+      // A server that asks for longer than we are willing to wait will not succeed after a shorter
+      // nap (a daily quota says "come back in 20 hours"), so retrying would only waste time.
+      if (err.retryAfterMs !== undefined && err.retryAfterMs > options.maxRetryAfterMs) throw err;
       let delay = backoff * (0.5 + 0.5 * random());
-      if (err.retryAfterMs !== undefined) {
-        delay = Math.max(delay, Math.min(err.retryAfterMs, options.maxRetryAfterMs));
-      }
+      if (err.retryAfterMs !== undefined) delay = Math.max(delay, err.retryAfterMs);
       if (options.deadline !== undefined && options.clock.now() + delay >= options.deadline)
         throw err;
 
+      options.onRetry?.({ attempt, delayMs: delay, error: err });
       await options.clock.sleep(delay);
     }
   }

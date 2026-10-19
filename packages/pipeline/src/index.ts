@@ -28,3 +28,15 @@ export { FetchError } from './research/errors.js';
 export type { FetchErrorCode } from './research/errors.js';
 export { createNetworkPolicy, validateUrl } from './research/network-policy.js';
 export type { NetworkPolicy } from './research/network-policy.js';
+
+// Generation (Phase 5): provider-neutral LLM layer and the stages that build a kit.
+export { generateKit, GenerationFailure } from './stages/generate.js';
+export type { GenerateKitInput, GenerateKitDeps, GenerationResult } from './stages/generate.js';
+export { loadLlmConfig, DEFAULT_MODEL } from './llm/config.js';
+export type { LlmConfig, ThinkingLevel } from './llm/config.js';
+export { createLlmClientFromConfig } from './llm/factory.js';
+export { createLlmClient } from './llm/client.js';
+export type { LlmClient, LlmEvent, LlmStats } from './llm/client.js';
+export { LlmError, isFatalForRun } from './llm/errors.js';
+export type { LlmErrorCode } from './llm/errors.js';
+export type { LlmProvider } from './llm/types.js';

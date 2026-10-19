@@ -93,18 +93,39 @@ describe('withRetry', () => {
     expect(low.clock.sleeps).toEqual([250, 500, 1000]);
   });
 
-  it('honours Retry-After when it is longer than the backoff, up to a cap', async () => {
+  it('honours Retry-After when it is longer than the backoff and within the limit', async () => {
     const { clock, options } = opts({ maxRetries: 2, maxRetryAfterMs: 4000 });
     let calls = 0;
     await withRetry(async () => {
       calls++;
+      if (calls === 1) {
+        throw new FetchError('HTTP_ERROR', 'HTTP 429', {
+          status: 429,
+          retryable: true,
+          retryAfterMs: 3000,
+        });
+      }
+      return 'ok';
+    }, options);
+    expect(clock.sleeps).toEqual([3000]);
+  });
+
+  it('gives up, instead of shortening the wait, when the server asks for longer than the limit', async () => {
+    // A server that says "come back in 20 hours" will not succeed after a 60-second nap.
+    const { clock, options } = opts({ maxRetries: 3, maxRetryAfterMs: 4000 });
+    let calls = 0;
+    const err = (await withRetry(async () => {
+      calls++;
       throw new FetchError('HTTP_ERROR', 'HTTP 429', {
         status: 429,
         retryable: true,
-        retryAfterMs: calls === 1 ? 3000 : 60_000,
+        retryAfterMs: 71_869_000,
       });
-    }, options).catch(() => undefined);
-    expect(clock.sleeps).toEqual([3000, 4000]);
+    }, options).catch((e: unknown) => e)) as FetchError;
+    expect(calls).toBe(1);
+    expect(clock.sleeps).toEqual([]);
+    expect(err.attempts).toBe(1);
+    expect(err.retryAfterMs).toBe(71_869_000);
   });
 
   it('stops retrying when the next wait would pass the deadline', async () => {
