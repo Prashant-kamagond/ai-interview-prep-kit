@@ -4,12 +4,14 @@ Turns a pasted job description and a company website into a personalised intervi
 company brief, role breakdown, categorised question bank, flashcards and a day-by-day schedule, with
 an editable builder and a practice mode. Built for the Trao full-stack assessment.
 
-> **Status: Phase 3 of 10 (backend and persistence).** Implemented and tested: shared contracts, the
-> deterministic core (coverage, schedule, kit validation), and the Express/MongoDB backend
+> **Status: Phase 4 of 10 (research engine).** Implemented and tested: shared contracts, the
+> deterministic core (coverage, schedule, kit validation), the Express/MongoDB backend
 > (authentication, kit CRUD with ownership and optimistic concurrency, generation-job lifecycle with
-> deduplication). **Not implemented yet:** company research, the LLM pipeline, the batch evaluator
-> (`npm run evaluate` exists but exits 2), the web UI, deployment. Generation jobs therefore fail
-> honestly with `PIPELINE_NOT_IMPLEMENTED`. See
+> deduplication) and the research engine (SSRF-safe fetching, robots.txt-aware crawling, link
+> ranking, hiring-page detection, Hacker News discussion search). **Not implemented yet:** the LLM
+> pipeline, the batch evaluator (`npm run evaluate` exists but exits 2), the web UI, deployment, and
+> wiring research into the API job runner, so generation jobs still fail honestly with
+> `PIPELINE_NOT_IMPLEMENTED`. See
 > [`docs/requirements-traceability.md`](docs/requirements-traceability.md) for the status of every
 > requirement. This README is completed in Phase 10.
 
@@ -83,6 +85,18 @@ owner-scoped queries with a uniform `404` for foreign resources; per-IP rate lim
 request-body size limit; one structured error shape with generic 500s and request ids; log redaction.
 Limitations are listed in `docs/api.md` (notably: rate limiting is in-memory per process, and
 generation jobs run in-process and cannot resume after a restart).
+
+## Research engine
+
+`packages/pipeline` fetches untrusted web pages, so every request goes through one safe fetcher:
+http(s) only, public addresses only (validated and pinned, so DNS cannot be rebound), every redirect
+re-validated, hard limits on size, decompression, content type and time. The crawler reads
+robots.txt first, keeps to the company site, follows links it discovers (no fixed list of paths),
+ranks them deterministically and judges pages by their content to find hiring and interview-process
+pages. Public discussion comes from the Hacker News Algolia API only. Every limit and every
+limitation, including what the manual live check found, is in
+[`docs/architecture.md`](docs/architecture.md). Loopback fixture sites are allowed only for an
+explicit `host:port` (development, tests, batch) and never in production.
 
 ## Deterministic core
 

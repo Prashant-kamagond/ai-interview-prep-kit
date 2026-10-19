@@ -82,3 +82,48 @@ important ones.
 - **Two bugs found by the first integration run, both in my tests** (a mixed-case email query and a
   session count over a shared database), and **one in the code** (CORS emitted its header for every
   origin; now a strict allow-list). All fixed without weakening any assertion.
+
+## Phase 4
+
+- **DNS pinning through a custom `lookup`.** Node's HTTP client accepts a `lookup` function; mine resolves
+  once, validates every answer, and returns that address to the socket, so there is no second
+  resolution to rebind. Alternatives considered: connecting to the IP and setting `Host` by hand
+  (breaks TLS SNI and certificate checks) and a proxy (extra infrastructure). Because Node skips
+  `lookup` for IP literals, literals are validated before the request.
+- **One bad address rejects the whole DNS answer**, rather than filtering to the good ones, so there is
+  never an ambiguity about which address was meant.
+- **Loopback fixtures are a `host:port` allow-list, not a boolean.** A global "allow private hosts"
+  switch would let any public site redirect the crawler at local services. The list is derived from
+  the case's own company URL and only when that URL is on loopback; production refuses it twice
+  (policy constructor and API config).
+- **Port allow-list (80, 443, 8080, 8443)** on public hosts, to stop the crawler probing internal
+  services on unusual ports. Cost: a company site on another port is rejected.
+- **robots.txt follows RFC 9309:** 4xx means no restrictions, unreachable means nothing is crawled.
+  The second is conservative and means a flaky robots.txt can cost a whole site; the limitation is
+  recorded instead of hidden. Retries are bounded so it cannot hang a run.
+- **Hiring pages are judged by content, links are only ranked.** Anchor wording is too varied to be
+  decisive, so ranking decides what to fetch first and a separate content classifier decides what
+  counts as a hiring page. Both are deterministic, table-driven and explainable (they return their
+  evidence), and neither calls a model.
+- **Truncate instead of fail for oversize pages.** The first live check showed `posthog.com`'s HTML
+  exceeds 1 MB, so rejecting made the whole site `unreachable`. Pages are now read up to 3 MB and
+  marked `truncated`; decompression stays bounded. Rejection remains the default for everything else
+  (robots.txt, API responses). This changed one Phase 4 test on purpose (an oversize page is now a
+  truncated page, not a failure) and added several for the new mode.
+- **Hacker News only, behind an interface.** Reddit's unauthenticated JSON and DuckDuckGo HTML are not
+  scraped. A relevance filter runs locally because the API returns anything matching the words.
+  The filter was tightened after the live check: bare "interview" needs hiring words within 15 words,
+  "Who is hiring?" threads are excluded, and the company must appear near the interview talk. It is
+  still a heuristic, and the architecture notes give measured (small-sample) precision.
+- **Deadlines are shared, not per request.** One research deadline is split 80/20 between crawl and
+  discussion; retries and backoff stop when the next wait would pass it.
+- **Mutation checks (all caught):** robots ignored, scope ignored, page budget ignored, unreachable
+  robots treated as allow-all, loopback allow-list widened, production guard removed, `nofollow`
+  ignored, resolved-address check removed, redirect target not validated, decompression not bounded,
+  truncation not cut. One survivor (the provider kept querying after a 429) exposed a weak assertion
+  and was fixed.
+- **A shell-quoting trap, found and understood:** the tool's shell collapses doubled backslashes, so
+  escapes typed in shell commands became real control characters (this also broke `evaluate.ts` in
+  Phase 1). File edits now go through the file tools, or build strings from character codes.
+- **Live checks changed the code twice** (size limit, discussion precision): fixtures alone would have
+  shipped both defects.
