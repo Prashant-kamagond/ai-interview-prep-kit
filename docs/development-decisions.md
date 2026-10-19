@@ -25,3 +25,21 @@ important ones.
 - **LLM provider and hosting are deliberately undecided** until Phases 5 and 10, when current
   free-tier limits are checked against official documentation. Nothing is deployed or paid for
   without explicit approval.
+
+## Phase 2
+
+- **Validation is two layers.** Zod (`contracts`) owns structure; `validateKit` (`core`) owns
+  cross-references and schedule invariants and reports precise paths. A structural failure
+  short-circuits the reference checks.
+- **Errors vs warnings.** `UNSCHEDULED_QUESTION` is a warning so a hand-added builder question does
+  not invalidate a kit; anything that would break a reference is an error.
+- **A must-have with no question is not a schedule error.** It is a coverage gap, and
+  `coverage.uncovered_requirement_ids` must report it honestly (enforced by `COVERAGE_MISMATCH`).
+- **Scheduling is rank-then-chunk, not bin-packing by minutes.** Chunks balance question counts and
+  front-load the hardest material. It is simple to explain and test. The trade-off is that day
+  lengths in minutes are uneven by design (harder days are longer).
+- **Empty days are 30-minute review days** rather than being dropped or padded with invented
+  questions, so the day count always equals the request and no id is ever fabricated.
+- **`passes` counts coverage checks run**; proposed budget of 3, to be finalised in Phase 5.
+- **Mutation-checked tests.** After the suites passed, I deliberately broke the must-first ranking and
+  the coverage-mismatch rule to confirm a test fails for each, then restored the code.

@@ -101,4 +101,6 @@ export type Requirement = z.infer<typeof requirementSchema>;
 export type Question = z.infer<typeof questionSchema>;
 export type Flashcard = z.infer<typeof flashcardSchema>;
 export type ScheduleDay = z.infer<typeof scheduleDaySchema>;
+export type Schedule = z.infer<typeof scheduleSchema>;
+export type Coverage = z.infer<typeof coverageSchema>;
 export type Kit = z.infer<typeof kitSchema>;
