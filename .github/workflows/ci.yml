@@ -11,6 +11,19 @@ permissions:
 jobs:
   verify:
     runs-on: ubuntu-latest
+    services:
+      # Real MongoDB for the integration suite. No credentials: it only listens on the runner.
+      mongo:
+        image: mongo:8
+        ports:
+          - 27017:27017
+        options: >-
+          --health-cmd "mongosh --quiet --eval 'db.adminCommand({ping:1}).ok'"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      TEST_MONGODB_URI: mongodb://localhost:27017/
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -23,6 +36,7 @@ jobs:
       - run: pnpm lint
       - run: pnpm typecheck
       - run: pnpm test
+      - run: pnpm test:integration
       - run: pnpm build
       - name: Dependency audit
         run: pnpm audit --audit-level=high --prod

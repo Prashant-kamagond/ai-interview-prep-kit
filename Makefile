@@ -1,7 +1,7 @@
 # Thin wrappers over the pnpm scripts. GNU Make is optional: every target is a single pnpm command,
 # so `pnpm <script>` works identically. On Windows install Make with `winget install GnuWin32.Make`
 # (or `choco install make`).
-.PHONY: install dev build lint format format-check typecheck test test-e2e evaluate up down clean
+.PHONY: install dev build lint format format-check typecheck test test-integration test-e2e evaluate up down clean
 
 install:
 	pnpm install --frozen-lockfile
@@ -26,6 +26,9 @@ typecheck:
 
 test:
 	pnpm test
+
+test-integration:
+	pnpm test:integration
 
 test-e2e:
 	pnpm test:e2e

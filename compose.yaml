@@ -8,7 +8,7 @@ services:
       MONGO_INITDB_ROOT_USERNAME: ${MONGO_ROOT_USER:?set MONGO_ROOT_USER in .env}
       MONGO_INITDB_ROOT_PASSWORD: ${MONGO_ROOT_PASSWORD:?set MONGO_ROOT_PASSWORD in .env}
     ports:
-      - '127.0.0.1:27017:27017'
+      - '127.0.0.1:${MONGO_PORT:-27017}:27017'
     volumes:
       - mongo-data:/data/db
     healthcheck:

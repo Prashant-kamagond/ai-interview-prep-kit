@@ -16,6 +16,7 @@
     "format:check": "prettier --check .",
     "typecheck": "pnpm -r typecheck && tsc -p scripts/tsconfig.json --noEmit",
     "test": "vitest run",
+    "test:integration": "vitest run --config vitest.integration.config.ts",
     "test:e2e": "echo \"E2E tests are added in Phase 7\" && exit 1",
     "evaluate": "tsx scripts/evaluate.ts"
   },

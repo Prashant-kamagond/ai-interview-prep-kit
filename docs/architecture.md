@@ -2,6 +2,26 @@
 
 Sections are added as each phase lands. Only implemented behaviour is described as implemented.
 
+## Backend (`apps/api`) — implemented in Phase 3
+
+Layered as routes → services → repositories → MongoDB, with cross-cutting middleware. Full
+endpoint, error, session, concurrency, job-lifecycle and index documentation is in
+[`api.md`](api.md).
+
+```text
+request ─► requestContext ─► helmet ─► CORS allow-list ─► Origin check ─► JSON(1 MB) ─► cookies
+        ─► [health] ─► rate limit ─► routes ─► 404 ─► errorHandler (single place errors become JSON)
+
+routes/        HTTP only: parse with contracts schemas, call a service, shape the response
+services/      auth, kits (validation + concurrency policy), jobs (lifecycle + dedup + runner)
+repositories/  the only code that touches collections; every kit/job query filters by owner
+jobs/          pure state machine and input hash; JobRunner interface (the Phase 5/6 seam)
+security/      argon2id password hashing, session token generation and keyed hashing
+```
+
+The `JobRunner` interface is the seam for the real pipeline: Phase 6 supplies an implementation
+that calls `packages/pipeline`. Until then the default runner fails jobs honestly.
+
 ## Deterministic core (`packages/core`) — implemented in Phase 2
 
 Pure functions, no I/O, no model calls. The API and the batch CLI import the same code.
