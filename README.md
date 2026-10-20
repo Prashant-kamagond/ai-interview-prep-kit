@@ -48,11 +48,11 @@
 <div align="center">
 
 ```text
- ┌──────────────────────┐   ┌──────────────────────┐   ┌──────────────────────┐   ┌──────────────────────┐
- │  📝 Job description  │ → │  🔎 Research website │ → │  🤖 Generate + check │ → │  🗓️ Kit, builder,   │
- │  + 🌐 company URL    │   │  (safe, polite)      │   │  (model proposes,    │   │     practice mode    │
- │  + 📅 days (1-60)    │   │                      │   │   code decides)      │   │                      │
- └──────────────────────┘   └──────────────────────┘   └──────────────────────┘   └──────────────────────┘
+
+   📝 Job description   →   🔎 Research website   →  🤖 Generate + check  →   🗓️ Kit, builder,   
+   + 🌐 company URL           (safe, polite)            (model proposes,           practice mode   
+   + 📅 days (1-60)                                      code decides)                              
+
 ```
 
 </div>
