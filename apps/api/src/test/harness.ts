@@ -7,6 +7,7 @@ import { createApp, type AppContext } from '../app.js';
 import type { Config } from '../config.js';
 import { ensureIndexes } from '../db.js';
 import type { JobRunInput, JobRunner } from '../jobs/runner.js';
+import type { Repositories } from '../repositories/index.js';
 
 export const TEST_ORIGIN = 'http://localhost:3000';
 
@@ -80,7 +81,12 @@ export function testConfig(overrides: Partial<Config> = {}): Config {
 }
 
 export async function createHarness(
-  options: { config?: Partial<Config>; runner?: JobRunner } = {},
+  options: {
+    config?: Partial<Config>;
+    runner?: JobRunner;
+    /** Builds the runner from the repositories (for the real pipeline runner). */
+    createRunner?: (repos: Repositories) => JobRunner;
+  } = {},
 ): Promise<Harness> {
   const client = new MongoClient(TEST_MONGODB_URI, { serverSelectionTimeoutMS: 3000 });
   try {
@@ -106,6 +112,7 @@ export async function createHarness(
     config,
     logger: pino({ level: 'silent' }),
     ...(options.runner ? { runner: options.runner } : {}),
+    ...(options.createRunner ? { createRunner: options.createRunner } : {}),
   });
 
   const server = createServer(ctx.app);

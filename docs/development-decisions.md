@@ -230,3 +230,39 @@ they are not lost:
   (all assertions pass, run exits 1), then fixed with one line, and pinned by a unit test.
 - **A shell-quoting slip repeated:** typing `'\\n'` in a heredoc produced a broken test file. The earlier
   note applies: file edits go through the file tools, and I scanned for control characters afterwards.
+
+## Phase 6
+
+Decisions taken with the owner before implementation, and the reasoning.
+
+- **One entry point for both callers.** `runCase` composes research and generation; the API job runner and the
+  batch command call only it. The assignment says the batch must run "the same code your application uses, not
+  a parallel implementation", and a parity test enforces it.
+- **A site that yields nothing is a failure; a site that yields something is a limited kit.** A brief is never
+  invented, so zero retrieved pages fails the case with a code that says why (`COMPANY_UNREACHABLE`,
+  `COMPANY_BLOCKED_BY_ROBOTS`, `COMPANY_URL_INVALID`/`BLOCKED`). A missing hiring page or discussion is not a
+  failure, as Appendix B states.
+- **An unreachable robots.txt means unreachable, not forbidden.** RFC 9309 treats an unfetchable robots.txt as
+  "off limits", and the crawler reports `blocked-by-robots`; `runCase` reports it as `COMPANY_UNREACHABLE` when
+  every robots fetch failed, because telling a user a down site "forbids" us would be wrong.
+- **Incomplete kits stay `ok`, and the contract is not changed.** Appendix B reserves `failed` for a case with
+  no kit at all. Appendix A has no field for limitations, so they are returned to the caller, printed by the
+  CLI and logged by the API; changing the schema needs approval and was not done.
+- **Gemini only, fakes for tests.** No provider was added. Every automated and offline test uses the fake
+  provider and local fixture sites; no live request was made while building Phase 6.
+- **Sequential batch.** Cases run one at a time. Concurrency would not help a daily quota and would make the
+  per-host politeness and the deadline arithmetic harder to reason about.
+- **Days above 60 are rejected, not clamped.** The API already caps days at 60; a batch case above that fails
+  `INVALID_CASE` with a message that says why.
+- **Exit 0 when a valid output file is written**, even if cases failed; non-zero (2-5) for fatal input,
+  configuration or output problems, and the output file is written atomically and only when valid.
+- **Deadlines:** 90 s per case and 14 minutes per batch, both finite and configurable. Research's own default
+  budget (90 s) equals the whole case budget, so `runCase` gives research 40% of the case budget per call
+  (36 s); the shared defaults were not changed.
+- **`npm run evaluate` reads `.env` itself** (a small parser in `scripts/evaluate.ts`; real environment
+  variables win over the file, and `process.env` is never modified). A Node flag such as
+  `--env-file-if-exists` was avoided on purpose: it is not documented for every Node version the project
+  allows (`engines` says `>=20.19`), whereas the parser behaves the same everywhere and adds no dependency.
+  A clean clone therefore needs only the documented install step and a copied `.env`.
+- **The API reads model settings when a job runs**, so a server without a key still serves everything else and
+  fails generation jobs with `LLM_NOT_CONFIGURED`.

@@ -4,16 +4,16 @@ Turns a pasted job description and a company website into a personalised intervi
 company brief, role breakdown, categorised question bank, flashcards and a day-by-day schedule, with
 an editable builder and a practice mode. Built for the Trao full-stack assessment.
 
-> **Status: Phase 5 of 10 (AI pipeline).** Implemented and tested: shared contracts, the deterministic
-> core (coverage, schedule, kit validation), the Express/MongoDB backend, the research engine, and the
-> generation stages (provider-neutral LLM layer with a Gemini adapter, requirement extraction, company
-> brief, per-category questions, flashcards, a deterministic bounded coverage loop, final kit
-> validation). **Not implemented yet:** wiring research and generation into the API job runner and the
-> batch evaluator (`npm run evaluate` still exits 2), the web UI, practice mode, deployment. Jobs still
-> fail honestly with `PIPELINE_NOT_IMPLEMENTED`. **The five-case 15-minute batch requirement is not met on
-> the free tier of this model:** the free daily request quota observed for `gemini-3.8-flash` (20 a day)
-> allows about two cases at roughly seven requests each. See "LLM provider" below. See [`docs/requirements-traceability.md`](docs/requirements-traceability.md) for the status of
-> every requirement. This README is completed in Phase 10.
+> **Status: Phase 6 of 10 (API and batch integration).** Implemented and tested: shared contracts, the
+> deterministic core (coverage, schedule, kit validation), the Express/MongoDB backend, the research engine,
+> the generation stages, and now the single pipeline entry point `runCase` that both the API's generation
+> jobs and `npm run evaluate` call. **Not implemented yet:** the web UI, practice mode, deployment.
+> **The five-case 15-minute requirement is demonstrated only with a deterministic fake model and local
+> fixture sites (26 s for five cases, pipeline overhead only).** With a real model it is **not
+> demonstrated**: the free daily request quota observed for `gemini-3.8-flash` (20 a day) allows about two
+> cases at roughly seven requests each. See "Batch evaluation" and "LLM provider" below, and
+> [`docs/requirements-traceability.md`](docs/requirements-traceability.md) for the status of every
+> requirement. This README is completed in Phase 10.
 
 ## Layout
 
@@ -58,12 +58,45 @@ contains placeholders. In production the API refuses to start with a weak `SESSI
 | `pnpm test:integration`                                     | API integration tests against a **real MongoDB** (fails if absent)  |
 | `pnpm typecheck` / `pnpm lint` / `pnpm format:check`        | Static checks                                                       |
 | `pnpm build`                                                | Next.js production build; the API is type-checked (not bundled yet) |
-| `npm run evaluate -- --input cases.json --output kits.json` | Required batch entry point. Pipeline is wired in Phase 6            |
+| `npm run evaluate -- --input cases.json --output kits.json` | Required batch entry point (see "Batch evaluation")                 |
 
 `make test-integration`, `make up`, `make down` etc. are thin wrappers. Integration tests create and
 drop a throwaway database per test file; they use `TEST_MONGODB_URI` (default: the Compose service
 on port 27018 with the credentials from `.env.example`). CI runs them against a `mongo:8` service
 container.
+
+## Batch evaluation
+
+```bash
+npm run evaluate -- --input cases.json --output kits.json
+```
+
+`cases.json` is an array of `{ "id", "jd", "company_url", "days" }` (Appendix B). Each case runs the full
+research, generation and validation path, one case at a time, and the command writes one Appendix B file
+with an entry per case: `status: "ok"` with the kit, or `status: "failed"` with a stable `error.code` and a
+curated message. A failing case never stops the run. Setup: `pnpm install`, copy `.env.example` to `.env` and
+set `LLM_API_KEY` (the command loads `.env` when it exists, or reads the process environment).
+
+- **`days`** must be 1-60. A case above 60 is recorded as failed (`INVALID_CASE`), never clamped.
+- **Company sites may be local** (for example `http://localhost:8099/acme/`): relative links are followed,
+  and loopback is allowed for each case's own host and port only, unless `NODE_ENV=production`.
+- **Time:** each case has a 90 s budget (`EVALUATE_CASE_DEADLINE_MS`) and the whole batch 14 minutes
+  (`EVALUATE_BATCH_DEADLINE_MS`). Cases that no longer fit are recorded as `BATCH_DEADLINE_EXCEEDED`.
+- **Failure codes** (`error.code`): `INVALID_CASE`, `DUPLICATE_ID`, `INVALID_INPUT`, `COMPANY_URL_INVALID`,
+  `COMPANY_URL_BLOCKED`, `COMPANY_UNREACHABLE`, `COMPANY_BLOCKED_BY_ROBOTS`, `COMPANY_RESEARCH_FAILED`,
+  `LLM_NOT_CONFIGURED`, `LLM_AUTH_FAILED`, `LLM_REQUEST_REJECTED`, `LLM_MODEL_NOT_FOUND`,
+  `LLM_QUOTA_EXHAUSTED`, `LLM_RATE_LIMITED`, `LLM_TIMEOUT`, `LLM_UNAVAILABLE`, `LLM_INVALID_OUTPUT`,
+  `LLM_CONTENT_BLOCKED`, `DEADLINE_EXCEEDED`, `BATCH_DEADLINE_EXCEEDED`, `KIT_INVALID`,
+  `CONFIGURATION_ERROR`, `INTERNAL_ERROR`.
+- **Partial results are `ok`:** a site with no hiring page, no public discussion, or a model stage that
+  failed part-way still yields a valid kit; the gaps are visible in the kit
+  (`coverage.uncovered_requirement_ids`, fewer questions or flashcards) and the command prints each case's
+  status and limitations to stderr. Appendix A has no field for limitations, so they are not stored in the
+  kit itself.
+- **Exit codes:** `0` the output file was written (even if some cases failed), `2` bad arguments, `3` the
+  input file is missing, not JSON or not an array, `4` configuration problem (for example no
+  `LLM_API_KEY`), `5` the output file could not be written, `1` unexpected error. The output is written
+  atomically and only when valid.
 
 ## API
 

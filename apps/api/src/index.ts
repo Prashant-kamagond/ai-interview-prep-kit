@@ -1,6 +1,7 @@
 import { createApp } from './app.js';
 import { loadConfig } from './config.js';
 import { connectMongo, ensureIndexes } from './db.js';
+import { createPipelineRunner } from './jobs/pipeline-runner.js';
 import { createLogger } from './logger.js';
 
 async function main(): Promise<void> {
@@ -11,7 +12,12 @@ async function main(): Promise<void> {
   const db = client.db();
   await ensureIndexes(db);
 
-  const { app, jobs } = createApp({ db, config, logger });
+  const { app, jobs } = createApp({
+    db,
+    config,
+    logger,
+    createRunner: (repos) => createPipelineRunner({ repos, config, logger }),
+  });
 
   // Jobs run in this process and cannot be resumed after a restart; fail the orphans honestly.
   const orphaned = await jobs.failInterrupted();

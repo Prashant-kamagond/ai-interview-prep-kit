@@ -26,6 +26,8 @@ export interface AppDeps {
   logger: Logger;
   /** The generation implementation. Defaults to one that fails every job honestly. */
   runner?: JobRunner;
+  /** Builds the runner once the repositories exist (the real pipeline needs them to store kits). Wins over `runner`. */
+  createRunner?: (repos: Repositories) => JobRunner;
 }
 
 export interface AppContext {
@@ -42,11 +44,12 @@ export function createApp({
   config,
   logger,
   runner = unimplementedRunner,
+  createRunner,
 }: AppDeps): AppContext {
   const repos = createRepositories(db);
   const auth = createAuthService(repos, config);
   const kits = createKitService(repos);
-  const jobs = createJobService(repos, runner, logger);
+  const jobs = createJobService(repos, createRunner ? createRunner(repos) : runner, logger);
   const authenticated = requireAuth(auth, config);
 
   const app = express();

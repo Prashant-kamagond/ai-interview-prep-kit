@@ -121,9 +121,24 @@ queued ──► running ──► succeeded
   A job can only reach `succeeded` through `running`, and nothing leaves a terminal state.
 - **Success requires a kit the owner has.** If a runner returns a kit id the user does not own, the
   job is failed rather than marked successful.
-- **Honest failures:** until the real pipeline exists the default runner fails every job with
-  `PIPELINE_NOT_IMPLEMENTED`. A runner's `JobFailure` keeps its code and message; any other error is
-  logged and stored as a generic `INTERNAL_ERROR`.
+- **Honest failures:** the server's runner is the real pipeline (`jobs/pipeline-runner.ts`, which calls the
+  same `runCase` as `npm run evaluate`). A runner's `JobFailure` keeps its code and message; any other error
+  is logged and stored as a generic `INTERNAL_ERROR`. An app built without a runner still fails every job
+  with `PIPELINE_NOT_IMPLEMENTED`. The stage reported while running is `researching` (5), `generating`
+  (40) and `finalizing` (95), then `done` (100).
+- **Failure codes** a user can see in `error.code`: `COMPANY_URL_INVALID`, `COMPANY_URL_BLOCKED`,
+  `COMPANY_UNREACHABLE`, `COMPANY_BLOCKED_BY_ROBOTS`, `COMPANY_RESEARCH_FAILED`, `LLM_NOT_CONFIGURED`,
+  `LLM_AUTH_FAILED`, `LLM_REQUEST_REJECTED`, `LLM_MODEL_NOT_FOUND`, `LLM_QUOTA_EXHAUSTED`,
+  `LLM_RATE_LIMITED`, `LLM_TIMEOUT`, `LLM_UNAVAILABLE`, `LLM_INVALID_OUTPUT`, `LLM_CONTENT_BLOCKED`,
+  `DEADLINE_EXCEEDED`, `KIT_INVALID`, `CONFIGURATION_ERROR`, `INTERNAL_ERROR`. Messages are curated: they
+  never contain keys, provider text, prompts or addresses.
+- **A kit with gaps is still a success.** A site with no hiring page, or a model stage that failed
+  part-way, produces a valid kit and a `succeeded` job. Appendix A has no field for the limitations, so
+  they go to the server log (`generation finished with gaps`); the gaps are visible in the kit itself.
+- **Model settings are read when a job runs.** A server without `LLM_API_KEY` still serves everything else
+  and fails generation jobs with `LLM_NOT_CONFIGURED`.
+- **Local company sites:** the runner allows loopback for the company URL's own host and port only when
+  `ALLOW_PRIVATE_HOSTS=true`, and never in production.
 - **Deduplication:** `inputHash = sha256(v1, normalised jd, normalised company_url, days)` after
   collapsing whitespace and line endings and normalising URL host case, trailing slash and
   fragment. No credentials or user data are hashed. A partial **unique index on
@@ -164,10 +179,10 @@ others.
   parts still conflict. Granular, merge-based builder updates (generated/edited/pinned/deleted
   state) are Phase 7. Fields outside Appendix A are dropped by validation.
 - Deleting a kit does not touch jobs that reference it.
-- Duplicate protection covers only in-progress jobs. How a previously _completed_ identical request
-  is treated (reuse vs regenerate) is decided with the real pipeline in Phase 6.
-- `ALLOW_PRIVATE_HOSTS` is validated at startup (production refuses `true`) but nothing consumes it
-  until the research layer exists (Phase 4).
+- Duplicate protection covers only in-progress jobs. A previously _completed_ identical request creates a
+  new job and a new kit (reuse versus regenerate is still undecided).
+- A job has a 90-second budget (research plus generation). The API does not yet expose it as a setting.
+- Limitations noted during generation are logged, not stored, because Appendix A has no field for them.
 - `pnpm build` type-checks the API but does not bundle it; the API runs through `tsx`. A production
   bundle step is decided with deployment (Phase 10).
 - Tested against a local MongoDB 8 container only. MongoDB Atlas has not been exercised.

@@ -40,3 +40,24 @@ export type { LlmClient, LlmEvent, LlmStats } from './llm/client.js';
 export { LlmError, isFatalForRun } from './llm/errors.js';
 export type { LlmErrorCode } from './llm/errors.js';
 export type { LlmProvider } from './llm/types.js';
+
+// One case end to end, and the batch built on it (Phase 6). The web app and the batch command
+// both go through runCase, so they share one implementation.
+export { runCase, CaseFailure, CASE_FAILURE_CODES, DEFAULT_CASE_DEADLINE_MS } from './run-case.js';
+export type { CaseFailureCode, CaseInput, CaseResult, RunCaseDeps } from './run-case.js';
+export {
+  runBatch,
+  readBatchInput,
+  writeBatchOutput,
+  BatchFatalError,
+  DEFAULT_BATCH_DEADLINE_MS,
+} from './batch.js';
+export type {
+  BatchFatalCode,
+  BatchOnlyCode,
+  BatchRun,
+  CaseReport,
+  RunBatchOptions,
+} from './batch.js';
+export { systemClock } from './research/clock.js';
+export type { Clock } from './research/clock.js';

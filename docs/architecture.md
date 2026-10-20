@@ -403,8 +403,8 @@ Case-level concurrency and batching do not reduce the request count, so they do 
 ### Known limitations of the generation layer
 
 - **The five-case requirement is not met on the free tier and is not verified at all.** Latency would allow it
-  (about a minute a case); the daily request quota would not (see above). It has not been run end to end.
-  Bounded case-level concurrency and a per-case deadline belong to Phase 6; neither bypasses a quota.
+  (about a minute a case); the daily request quota would not (see above). It has not been run end to end
+  with a real model. Phase 6 added a per-case deadline and sequential batch processing; neither bypasses a quota.
 - **Quality is judged by structure and grounding, not by an expert.** Two of the live questions in the
   company-fit category read like system-design questions; the schema cannot prevent that.
 - **Brief prose is not verified sentence by sentence.** Only the claims behind it carry quotes. A model could
@@ -415,3 +415,92 @@ Case-level concurrency and batching do not reduce the request count, so they do 
   are taken as reported by the API.
 - **English-oriented prompts and heuristics.**
 - **Only Gemini is implemented.** The `LlmProvider` interface is the seam for another.
+
+## Case runner and batch (`packages/pipeline`, `scripts/evaluate.ts`) — implemented in Phase 6
+
+One function, `runCase(input, deps)` in `run-case.ts`, takes `{jd, company_url, days}` and either returns a
+validated Appendix A kit or throws a `CaseFailure` with a stable code and a curated message. The API's
+generation job (`apps/api/src/jobs/pipeline-runner.ts`) and the batch command both call it and nothing else,
+so they cannot drift apart. A parity test runs the same input through both and compares the kits.
+
+```text
+validate input (same schema as the API) ─► research the company site ─► model client with the case deadline
+        │                                        │                              │
+   INVALID_INPUT                    no page at all? ─► COMPANY_* failure     generateKit (Phase 5)
+                                    some pages? ─► continue, gaps recorded       │
+                                                                  GenerationFailure ─► LLM_* / DEADLINE_EXCEEDED / KIT_INVALID
+```
+
+### Failure versus a limited kit
+
+| Situation                                                                  | Result                                                                            |
+| -------------------------------------------------------------------------- | --------------------------------------------------------------------------------- |
+| Invalid input (days outside 1-60, empty description, non-http URL)         | failed `INVALID_INPUT` (in a batch file: `INVALID_CASE`)                          |
+| URL syntax invalid or carries credentials                                  | failed `COMPANY_URL_INVALID`                                                      |
+| URL points at a private, loopback or metadata address (SSRF policy)        | failed `COMPANY_URL_BLOCKED`                                                      |
+| Nothing answers, or only errors / 404                                      | failed `COMPANY_UNREACHABLE`                                                      |
+| `robots.txt` cannot be fetched at all (RFC 9309: treated as off limits)    | failed `COMPANY_UNREACHABLE` (a site that is down, not one that forbids us)       |
+| `robots.txt` forbids the whole site                                        | failed `COMPANY_BLOCKED_BY_ROBOTS`                                                |
+| At least one page was retrieved, no hiring page, no discussion, thin site  | **ok**: a limited kit, with the brief limited to what was found                   |
+| A model stage fails part-way (rate limit, quota, timeout) after extraction | **ok**, incomplete: valid kit with fewer questions/flashcards, gaps in `coverage` |
+| Extraction itself fails, or the model setup is wrong                       | failed `LLM_*` (the kit cannot be built without the role breakdown)               |
+| Time runs out before extraction                                            | failed `DEADLINE_EXCEEDED`                                                        |
+
+Rule behind the table: a company brief is never invented, so a site that yields no page at all is a
+failure with a code that says why; anything that yields some pages produces an honestly limited kit. A
+kit that came out incomplete is never labelled complete: `runCase` returns `status`, `incompleteReasons` and
+`limitations`, the batch command prints them per case, and the API logs them.
+
+**Contract limit.** Appendix A (and the job record) has no field for limitations or an "incomplete" status
+and extra keys would be dropped by validation, so those details cannot travel inside the kit. What the kit
+itself shows honestly: `coverage.uncovered_requirement_ids`, the number of questions and flashcards, and the
+brief text. Adding an optional field needs a contract change and was not made.
+
+### Deadlines
+
+- **Per case: 90 s** for research and generation together (`EVALUATE_CASE_DEADLINE_MS`; `caseDeadlineMs` for
+  the API). The model client enforces it: no call starts after it, and a call in flight ends at its own
+  timeout, which is capped by the time left.
+- **Conflict with the research engine's default, resolved per call.** The research engine's default total
+  budget is 90 s, equal to the whole case budget. `runCase` therefore passes research a budget of 40% of the
+  case budget (36 s of 90 s) for that call; the engine's defaults are unchanged. If research uses the whole of
+  its share the model still has about 54 s.
+- **Per batch: 14 minutes** (`EVALUATE_BATCH_DEADLINE_MS`), finite. Cases run one at a time, in input order;
+  a case that cannot start before the deadline is recorded `BATCH_DEADLINE_EXCEEDED`, and the running case's
+  own deadline is capped by what is left of the batch.
+- **Arithmetic for the five-case requirement:** worst case 5 x 90 s = 450 s, inside the 840 s batch budget and
+  the assignment's 15 minutes (900 s). Sequential processing therefore supports the target in the worst case,
+  provided each case stays within its 90 s budget. More than nine cases that each use the whole budget would
+  not fit in 14 minutes, and the last ones would be recorded as `BATCH_DEADLINE_EXCEEDED`.
+
+### The batch command
+
+`scripts/evaluate.ts` parses arguments, reads the file (`readBatchInput`), calls `runBatch`, and writes the
+result with `writeBatchOutput` (temporary file in the same folder, then a rename; validated against
+`batchOutputSchema` first). Every input entry yields exactly one output entry in order: a malformed entry is
+keyed by its id, or by its position when it has none; a duplicate id is failed `DUPLICATE_ID`; each kit is
+checked against Appendix A again before it is reported `ok`. Exit codes: 0 output written (even if cases
+failed), 1 unexpected, 2 arguments, 3 input, 4 configuration, 5 output.
+
+Local company sites: `createResearchPolicy` permits loopback for exactly the case URL's own host and port (so
+`http://localhost:8099/acme/` works with relative links) and throws in production. A case cannot reach another
+local port or any private range (tested: a fixture whose page links to a second local server never causes a
+request to it).
+
+### Measured (2026-10-20)
+
+Five synthetic cases, local fixture sites, the deterministic fake model (no live request of any kind), run
+through the real `runCli`: **26.3 s in total, 5.3 s a case, 35 model calls (7 a case)** with the research
+engine's default politeness (1 s between requests to one host); **0.06 s** without politeness (the unit test).
+This measures the pipeline's own overhead and the crawl, not a model. With a real model the time is dominated
+by model latency (observed about a minute a case on Gemini when not throttled) and quota; **five real cases in
+15 minutes has not been demonstrated.**
+
+### Known limitations of the case runner
+
+- Limitations and incompleteness cannot be stored in the kit (see "Contract limit").
+- Cases run sequentially; there is no case-level concurrency. It would not help a daily request quota.
+- After a provider quota failure the next case still makes one request to discover it (each case builds its
+  own client); it fails fast.
+- A completed identical API request still creates a new job and a new kit.
+- A job's 90 s budget is not yet configurable through the API's environment.
