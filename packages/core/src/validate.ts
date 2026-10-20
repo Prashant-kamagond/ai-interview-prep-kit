@@ -1,5 +1,5 @@
 import { kitSchema, type Kit } from '@trao/contracts';
-import { checkCoverage } from './coverage.js';
+import { checkCoverage } from './coverage';
 
 /**
  * Full kit validation: Appendix A structure (via the shared Zod schema) followed by the

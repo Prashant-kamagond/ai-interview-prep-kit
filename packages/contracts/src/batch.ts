@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { kitSchema } from './kit.js';
+import { kitSchema } from './kit';
 
 /** Appendix B of the assignment: batch input cases and the output file. */
 
