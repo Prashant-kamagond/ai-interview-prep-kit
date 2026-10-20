@@ -20,7 +20,7 @@ import { practiceRouter } from './routes/practice.js';
 import { createPracticeService } from './services/practice.js';
 import { kitsRouter } from './routes/kits.js';
 import { createAuthService } from './services/auth.js';
-import { createJobService, type JobService } from './services/jobs.js';
+import { createJobService, type JobService, type JobServiceOptions } from './services/jobs.js';
 import { createBuilderService } from './services/builder.js';
 import { createRegenerationService } from './services/regeneration.js';
 import {
@@ -39,6 +39,8 @@ export interface AppDeps {
   createRunner?: (repos: Repositories) => JobRunner;
   /** Model and time settings for regeneration jobs (tests inject a fake model client). */
   regeneration?: Pick<RegenerationRunnerOptions, 'createLlm' | 'env' | 'deadlineMs'>;
+  /** How jobs are kept alive and recovered on platforms that end processes (see JobServiceOptions). */
+  jobOptions?: JobServiceOptions;
 }
 
 export interface AppContext {
@@ -57,6 +59,7 @@ export function createApp({
   runner = unimplementedRunner,
   createRunner,
   regeneration: regenerationOptions = {},
+  jobOptions = {},
 }: AppDeps): AppContext {
   const repos = createRepositories(db);
   const auth = createAuthService(repos, config);
@@ -73,6 +76,7 @@ export function createApp({
     createRunner ? createRunner(repos) : runner,
     logger,
     regenerationRunner,
+    jobOptions,
   );
   const regeneration = createRegenerationService({ repos, jobs, builder });
   const practice = createPracticeService(repos);

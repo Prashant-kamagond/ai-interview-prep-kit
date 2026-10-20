@@ -162,6 +162,11 @@ identical to one already running is never refused: it joins that job. The check 
 burst of simultaneous requests can overshoot a limit by the size of the burst; it bounds the load, it is not a
 transaction. The limits are constants in `services/jobs.ts`, not settings.
 
+**On Vercel** (`apps/api/src/server.ts`) the API sits behind the public prefix `/api` (`/api/kits`, `/api/auth/login`, ...);
+the platform strips it so the routes above are unchanged. The startup sweep is not used there: an active job not
+updated for 6 minutes is failed with `JOB_TIMED_OUT` when jobs are next submitted or that job is read, and each
+job asks the platform to keep the invocation alive until it finishes. See [`deployment.md`](deployment.md).
+
 **In-process limitation.** Jobs run inside the API process with no queue. The job document is a
 durable record, but MongoDB cannot resume an interrupted task. At startup `failInterrupted()` marks
 any job still `active` as `failed` (`SERVER_RESTARTED`) so users see an honest terminal state and can

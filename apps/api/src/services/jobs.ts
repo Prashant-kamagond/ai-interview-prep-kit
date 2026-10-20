@@ -57,6 +57,29 @@ export function toJobView(job: JobDoc): JobView {
  * joins that job. The check reads the count and then inserts, so a burst of simultaneous requests can
  * overshoot a limit by the size of the burst; it bounds the load, it is not a transaction.
  */
+export interface JobServiceOptions {
+  /**
+   * Receives each job's task as it starts. A platform that ends a process once a response is sent passes
+   * its "keep running until this settles" call here (Vercel's waitUntil). It is a request to the platform,
+   * not a guarantee: the platform can still end the invocation, which is what `staleAfterMs` recovers from.
+   */
+  keepAlive?: (task: Promise<void>) => void;
+  /**
+   * When set, an active job that has not been updated for this long is failed with JOB_TIMED_OUT the next
+   * time jobs are submitted or read. For platforms where an invocation can end without any shutdown hook
+   * (so the startup sweep never runs). It must be longer than the longest invocation.
+   */
+  staleAfterMs?: number;
+  /** Test seam for the clock. */
+  now?: () => number;
+}
+
+export const STALE_JOB_ERROR = {
+  code: 'JOB_TIMED_OUT',
+  message:
+    'This job stopped before it finished because the server ended it. Please submit it again.',
+} as const;
+
 export const MAX_ACTIVE_JOBS_PER_USER = 3;
 export const MAX_ACTIVE_JOBS_TOTAL = 25;
 
@@ -65,8 +88,16 @@ export function createJobService(
   runner: JobRunner,
   logger: Logger,
   regenerationRunner?: RegenerationRunner,
+  options: JobServiceOptions = {},
 ) {
   const inFlight = new Set<Promise<void>>();
+  const now = options.now ?? Date.now;
+
+  /** Fails jobs nobody is running any more. A no-op unless `staleAfterMs` is set. */
+  async function recoverStale(): Promise<number> {
+    if (options.staleAfterMs === undefined) return 0;
+    return repos.jobs.failStale(new Date(now() - options.staleAfterMs), { ...STALE_JOB_ERROR });
+  }
 
   async function fail(job: JobDoc, error: JobError): Promise<void> {
     await repos.jobs.transition(job._id, 'failed', { error });
@@ -172,6 +203,12 @@ export function createJobService(
       .catch((err: unknown) => logger.error({ err }, 'could not record job outcome'))
       .finally(() => inFlight.delete(task));
     inFlight.add(task);
+    try {
+      options.keepAlive?.(task);
+    } catch (err) {
+      // Asking the platform for more time must never break the job itself.
+      logger.warn({ err }, 'could not ask the platform to keep the job alive');
+    }
   }
 
   async function checkCapacity(userId: ObjectId, inputHash: string): Promise<void> {
@@ -198,6 +235,7 @@ export function createJobService(
       input: GenerationRequest,
     ): Promise<{ job: JobDoc; deduplicated: boolean }> {
       const inputHash = hashGenerationInput(input);
+      await recoverStale();
       await checkCapacity(userId, inputHash);
       const { job, created } = await repos.jobs.insertActive({
         userId,
@@ -218,6 +256,7 @@ export function createJobService(
       regeneration: { kitId: ObjectId; request: RegenerationRequest },
       inputHash: string,
     ): Promise<{ job: JobDoc; deduplicated: boolean }> {
+      await recoverStale();
       await checkCapacity(userId, inputHash);
       const { job, created } = await repos.jobs.insertActive({ userId, inputHash, regeneration });
       if (created) start(job);
@@ -226,8 +265,17 @@ export function createJobService(
 
     async get(userId: ObjectId, id: string): Promise<JobDoc> {
       const oid = parseObjectId(id);
-      const job = oid && (await repos.jobs.findOwned(userId, oid));
+      let job = oid && (await repos.jobs.findOwned(userId, oid));
       if (!job) throw notFound('Job');
+      // Only a job that looks abandoned pays for the sweep.
+      if (
+        job.active &&
+        options.staleAfterMs !== undefined &&
+        job.updatedAt.getTime() < now() - options.staleAfterMs
+      ) {
+        await recoverStale();
+        job = (oid && (await repos.jobs.findOwned(userId, oid))) || job;
+      }
       return job;
     },
 

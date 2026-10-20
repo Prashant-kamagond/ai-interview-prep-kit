@@ -60,6 +60,8 @@ const FAILURE_TEXT: Record<string, string> = {
   LLM_MODEL_NOT_FOUND: 'The configured language model could not be found on the server.',
   LLM_REQUEST_REJECTED: 'The language model rejected the request.',
   SERVER_RESTARTED: 'The server restarted while this was running. Please submit it again.',
+  JOB_TIMED_OUT:
+    'This stopped before it finished because the server ended it. Please submit it again.',
   INTERNAL_ERROR: 'Something went wrong on the server. Please try again.',
   VERSION_CONFLICT:
     'The kit was changed while this was running. Nothing was applied. Review the current kit and run it again.',

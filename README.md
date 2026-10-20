@@ -21,8 +21,8 @@
 
 ![Groq](https://img.shields.io/badge/LLM-Groq%20gpt--oss-F55036)
 ![Gemini](https://img.shields.io/badge/LLM-Google%20Gemini-4285F4?logo=googlegemini&logoColor=white)
-![Unit tests](https://img.shields.io/badge/unit%20tests-1806%20passing-brightgreen)
-![Integration tests](https://img.shields.io/badge/integration%20tests-213%20passing-brightgreen)
+![Unit tests](https://img.shields.io/badge/unit%20tests-1843%20passing-brightgreen)
+![Integration tests](https://img.shields.io/badge/integration%20tests-233%20passing-brightgreen)
 ![Requirements](https://img.shields.io/badge/requirements-56%2F68%20complete-blue)
 ![Deployed](https://img.shields.io/badge/deployed-not%20yet-lightgrey)
 
@@ -49,9 +49,9 @@
 
 ```text
 
-   📝 Job description   →   🔎 Research website   →  🤖 Generate + check  →   🗓️ Kit, builder,   
-   + 🌐 company URL           (safe, polite)            (model proposes,           practice mode   
-   + 📅 days (1-60)                                      code decides)                              
+   📝 Job description   →   🔎 Research website   →  🤖 Generate + check  →   🗓️ Kit, builder,
+   + 🌐 company URL           (safe, polite)            (model proposes,           practice mode
+   + 📅 days (1-60)                                      code decides)
 
 ```
 
@@ -307,8 +307,8 @@ Every limitation is spelled out in [`docs/architecture.md`](docs/architecture.md
 
 | Check                         | Command                 | Last result (2026-10-20)    |
 | ----------------------------- | ----------------------- | --------------------------- |
-| 🧪 Unit and component tests   | `make test`             | **1,806 passed** (86 files) |
-| 🍃 Integration (real MongoDB) | `make test-integration` | **213 passed** (9 files)    |
+| 🧪 Unit and component tests   | `make test`             | **1,843 passed** (88 files) |
+| 🍃 Integration (real MongoDB) | `make test-integration` | **233 passed** (10 files)   |
 | 🔤 Types, lint, formatting    | `make check`            | clean                       |
 | 🏗️ Production builds          | `make build`            | pass                        |
 | 🌐 Browser / E2E              | none                    | **not implemented**         |
@@ -501,7 +501,9 @@ More, including a full manual acceptance checklist, is in [`docs/local-testing.m
 
 ## Deployment
 
-Prepared but not performed: see [`docs/deployment.md`](docs/deployment.md) for the architecture, every
+Prepared but not performed: a root `vercel.json` runs the Next.js app and the Express API as two Vercel services on
+one domain (`/api/*` goes to the API), and `apps/api/src/server.ts` is the serverless entry. See
+[`docs/deployment.md`](docs/deployment.md) for the architecture, every
 environment variable (placeholders only), the cookie/CORS settings, the steps and what is unverified. A
 deployment must build the web app with `make build-production API_URL=https://...` (`pnpm build:production`); the deployed app refuses to call a missing,
 `http` or localhost API address instead of silently using `http://localhost:4000`. CI (`.github/workflows/ci.yml`)

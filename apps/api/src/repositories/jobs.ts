@@ -130,6 +130,19 @@ export function jobRepository(c: Collections) {
       );
     },
 
+    /**
+     * Fails active jobs that have not been updated since `cutoff`. For platforms where an invocation can
+     * end without any shutdown hook, so the startup sweep below never runs for it.
+     */
+    async failStale(cutoff: Date, error: JobError): Promise<number> {
+      const now = new Date();
+      const res = await c.jobs.updateMany(
+        { active: true, updatedAt: { $lt: cutoff } },
+        { $set: { status: 'failed', active: false, error, finishedAt: now, updatedAt: now } },
+      );
+      return res.modifiedCount;
+    },
+
     /** Fails every job still marked active. Only valid at startup of a single-instance server. */
     async failAllActive(error: JobError): Promise<number> {
       const now = new Date();

@@ -13,14 +13,14 @@ function main(): void {
   const problems = checkProductionEnv(process.env);
   if (problems.length === 0) {
     process.stdout.write(
-      'production environment check: ok (NEXT_PUBLIC_API_URL is set to an https, non-local address)\n',
+      'production environment check: ok (NEXT_PUBLIC_API_URL is a public https address or a same-origin path)\n',
     );
     return;
   }
   console.error('production environment check FAILED:');
   for (const p of problems) console.error(`  - ${p}`);
   console.error(
-    'Set NEXT_PUBLIC_API_URL to the public https address of the API, then build again (see docs/deployment.md).',
+    'Set NEXT_PUBLIC_API_URL to the public https address of the API, or to /api when the API is on the same domain, then build again (see docs/deployment.md).',
   );
   process.exit(1);
 }

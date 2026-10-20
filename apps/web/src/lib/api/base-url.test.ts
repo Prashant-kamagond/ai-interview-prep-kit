@@ -7,6 +7,7 @@ import {
   ApiConfigError,
   LOCAL_API_URL,
   isLoopbackHost,
+  isSameOriginPath,
   problemsWithDeployedApiUrl,
   resolveApiBaseUrl,
 } from './base-url';
@@ -164,6 +165,72 @@ describe('the client', () => {
   });
 });
 
+describe('a same-origin path (page and API on one domain, as on Vercel)', () => {
+  it.each(['/api', '/api/', '/api/v1', '/a-b/c_d.e'])('%s is a valid same-origin path', (v) =>
+    expect(isSameOriginPath(v)).toBe(true),
+  );
+  it.each([
+    '/',
+    '//',
+    '//evil.example.com',
+    '/api//x',
+    '/api/../admin',
+    '/./api',
+    '/api?x=1',
+    '/api#top',
+    '/api x',
+    '/api%2e%2e',
+    'api',
+    'https://api.example.com',
+  ])('%s is not', (v) => expect(isSameOriginPath(v)).toBe(false));
+
+  it('is accepted on a deployed host and on localhost, without a trailing slash', () => {
+    for (const pageHostname of ['app.example.com', 'localhost']) {
+      expect(resolveApiBaseUrl({ explicit: '/api', pageHostname })).toBe('/api');
+      expect(resolveApiBaseUrl({ explicit: '/api///', pageHostname })).toBe('/api');
+    }
+  });
+
+  it('is refused with no page (it cannot be resolved outside a browser) and when malformed', () => {
+    expect(() => resolveApiBaseUrl({ explicit: '/api', pageHostname: null })).toThrow(
+      /only works in a browser/,
+    );
+    for (const explicit of ['//evil.example.com', '/api/../x', '/api?x=1']) {
+      expect(() => resolveApiBaseUrl({ explicit, pageHostname: 'app.example.com' })).toThrow(
+        /same-origin path/,
+      );
+    }
+  });
+
+  it('is fit for a deployment build, malformed paths are not', () => {
+    expect(problemsWithDeployedApiUrl('/api')).toEqual([]);
+    expect(problemsWithDeployedApiUrl('//evil.example.com')).toEqual([
+      'NEXT_PUBLIC_API_URL is not a valid same-origin path',
+    ]);
+  });
+
+  it("the client calls the page's own origin: /api + /kits is /api/kits", async () => {
+    vi.stubGlobal('window', { location: { hostname: 'app.example.com' } });
+    vi.stubEnv('NEXT_PUBLIC_API_URL', '/api');
+    const fetchSpy = vi.fn(async () => new Response(JSON.stringify({ kits: [] }), { status: 200 }));
+    await createApiClient({ fetch: fetchSpy as unknown as typeof fetch }).get('/kits');
+    expect(fetchSpy).toHaveBeenCalledWith(
+      '/api/kits',
+      expect.objectContaining({ credentials: 'include' }),
+    );
+  });
+
+  it('a malformed path on a deployed host fails every call without touching the network', async () => {
+    vi.stubGlobal('window', { location: { hostname: 'app.example.com' } });
+    vi.stubEnv('NEXT_PUBLIC_API_URL', '//evil.example.com');
+    const fetchSpy = vi.fn();
+    await expect(
+      createApiClient({ fetch: fetchSpy as unknown as typeof fetch }).get('/kits'),
+    ).rejects.toMatchObject({ code: 'CONFIG_ERROR' });
+    expect(fetchSpy).not.toHaveBeenCalled();
+  });
+});
+
 describe('the production build check', () => {
   it('passes only for a public https address', () => {
     expect(checkProductionEnv({ NEXT_PUBLIC_API_URL: 'https://api.example.com' })).toEqual([]);
@@ -193,6 +260,13 @@ describe('the production build check', () => {
     const insecure = run({ NEXT_PUBLIC_API_URL: 'http://user:topsecret@api.example.com' });
     expect(insecure.status).toBe(1);
     expect(insecure.stderr + insecure.stdout).not.toContain('topsecret');
+  });
+
+  it('as a command, passes (exit 0) for a same-origin path and fails for a malformed one', () => {
+    expect(run({ NEXT_PUBLIC_API_URL: '/api' }).status).toBe(0);
+    const bad = run({ NEXT_PUBLIC_API_URL: '//evil.example.com' });
+    expect(bad.status).toBe(1);
+    expect(bad.stderr).toMatch(/same-origin path/);
   });
 
   it('as a command, passes (exit 0) for a public https address', () => {

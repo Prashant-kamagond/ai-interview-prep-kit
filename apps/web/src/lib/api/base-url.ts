@@ -9,7 +9,10 @@
  *    local default, so `pnpm dev` and a local `next start` keep working;
  *  - anywhere else (a real host name) an unset URL is a configuration error, and so is a URL that points at
  *    a loopback host or does not use https. The app then says it is misconfigured instead of calling
- *    anything.
+ *    anything;
+ *  - a same-origin path such as `/api` is also valid: the page and the API are served from one domain (the
+ *    Vercel deployment routes `/api/*` to the API), so the browser calls the page's own origin. That needs no
+ *    CORS and keeps the session cookie first-party.
  *
  * The same rules are applied at build time by `scripts/check-production-env.ts` (`pnpm build:production`),
  * which a deployment should use, so the mistake fails the build instead of reaching a visitor.
@@ -22,6 +25,15 @@ export class ApiConfigError extends Error {
     super(message);
     this.name = 'ApiConfigError';
   }
+}
+
+/**
+ * A same-origin path like `/api` or `/api/v1`: one leading slash (never `//`, which means another host), at
+ * least one segment, only URL-safe characters, no query, no fragment and no dot segments.
+ */
+export function isSameOriginPath(value: string): boolean {
+  if (!/^\/[A-Za-z0-9._~-]+(\/[A-Za-z0-9._~-]+)*\/*$/.test(value)) return false;
+  return !value.split('/').some((segment) => segment === '.' || segment === '..');
 }
 
 export function isLoopbackHost(hostname: string): boolean {
@@ -42,6 +54,9 @@ export function isLoopbackHost(hostname: string): boolean {
 export function problemsWithDeployedApiUrl(raw: string | undefined): string[] {
   const value = (raw ?? '').trim();
   if (value === '') return ['NEXT_PUBLIC_API_URL is not set'];
+  if (value.startsWith('/')) {
+    return isSameOriginPath(value) ? [] : ['NEXT_PUBLIC_API_URL is not a valid same-origin path'];
+  }
   let url: URL;
   try {
     url = new URL(value);
@@ -76,6 +91,18 @@ export function resolveApiBaseUrl({ explicit, pageHostname }: BaseUrlInput): str
       );
     }
     return LOCAL_API_URL;
+  }
+
+  if (value.startsWith('/')) {
+    if (!isSameOriginPath(value)) {
+      throw new ApiConfigError('NEXT_PUBLIC_API_URL is not a valid same-origin path');
+    }
+    if (pageHostname === null) {
+      throw new ApiConfigError(
+        'NEXT_PUBLIC_API_URL is a same-origin path, which only works in a browser',
+      );
+    }
+    return value.replace(/\/+$/, '');
   }
 
   let url: URL;
