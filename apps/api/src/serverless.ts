@@ -74,6 +74,17 @@ export function createServerlessApp(deps: ServerlessDeps): ServerlessApp {
 
   const app = express();
   app.disable('x-powered-by');
+  // Vercel routes /api/* to this app, and vercel.json asks the platform to strip the prefix. The first
+  // production deployment showed that the app can still receive the full path (/api/health), so the prefix
+  // is removed here too. None of the routes starts with /api, so this is safe whether or not the platform
+  // already stripped it.
+  app.use((req, _res, next) => {
+    if (req.url === '/api' || req.url.startsWith('/api/') || req.url.startsWith('/api?')) {
+      const rest = req.url.slice('/api'.length);
+      req.url = rest.startsWith('/') ? rest : `/${rest}`;
+    }
+    next();
+  });
   app.use((req, res, next) => {
     // Liveness never touches the database.
     if (req.path === '/health') return next();

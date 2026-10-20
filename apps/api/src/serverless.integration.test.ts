@@ -100,9 +100,23 @@ describe('routing through the platform prefix', () => {
     expect(res.body?.error?.code).not.toBe('NOT_FOUND');
   });
 
-  it('would not find them without the strip: the routes have no /api prefix', async () => {
+  it('strips the /api prefix itself when the platform has not (the first deployment showed it may not)', async () => {
     const { app } = build();
-    expect((await request(app).get('/api/kits')).status).toBe(404);
+    expect((await request(app).get('/api/health')).status).toBe(200);
+    expect((await request(app).get('/api/health?probe=1')).status).toBe(200);
+    expect((await request(app).get('/api/kits')).status).toBe(401);
+  });
+
+  it('answers the same routes when the platform did strip the prefix', async () => {
+    const { app } = build();
+    expect((await request(app).get('/health')).status).toBe(200);
+    expect((await request(app).get('/kits')).status).toBe(401);
+  });
+
+  it('only removes one leading /api: a path that merely contains it is not a route', async () => {
+    const { app } = build();
+    expect((await request(app).get('/api/api/kits')).status).toBe(404);
+    expect((await request(app).get('/apix/kits')).status).toBe(404);
   });
 });
 
