@@ -1,6 +1,5 @@
 import type { QuestionCategory, Requirement } from '@trao/contracts';
 import type { LlmClient } from '../llm/client.js';
-import type { ResearchResult } from '../research/research.js';
 import { normalizeWords } from '../research/text-match.js';
 import { systemPrompt, untrustedBlock } from './prompt.js';
 import { questionsSchema } from './schemas.js';
@@ -55,10 +54,16 @@ export function eligibleRequirements(
   }
 }
 
+/** What question generation reads from research: page mentions and discussion snippets. */
+export interface QuestionResearch {
+  crawl: { pages: { url: string; text: string; interview_mentions: string[] }[] };
+  discussion: { items: { url: string; snippet: string }[] };
+}
+
 export function buildQuestionContext(
   role: { title: string; seniority: string },
   requirements: Requirement[],
-  research: ResearchResult,
+  research: QuestionResearch,
   whatTheyDo: string,
 ): QuestionContext {
   const interviewMentions = research.crawl.pages

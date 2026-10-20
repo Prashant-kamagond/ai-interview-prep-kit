@@ -325,7 +325,9 @@ export function createLlmClient(options: LlmClientOptions): LlmClient {
       stats.logicalCalls++;
       let jsonSchema = schemaCache.get(args.schema);
       if (!jsonSchema) {
-        jsonSchema = toGeminiSchema(args.schema);
+        jsonSchema = provider.schemaFor
+          ? provider.schemaFor(args.schema)
+          : toGeminiSchema(args.schema);
         schemaCache.set(args.schema, jsonSchema);
       }
 

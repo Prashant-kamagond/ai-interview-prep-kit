@@ -32,8 +32,9 @@ export type { NetworkPolicy } from './research/network-policy.js';
 // Generation (Phase 5): provider-neutral LLM layer and the stages that build a kit.
 export { generateKit, GenerationFailure } from './stages/generate.js';
 export type { GenerateKitInput, GenerateKitDeps, GenerationResult } from './stages/generate.js';
-export { loadLlmConfig, DEFAULT_MODEL } from './llm/config.js';
-export type { LlmConfig, ThinkingLevel } from './llm/config.js';
+export { loadLlmConfig, DEFAULT_MODEL, LLM_PROVIDERS } from './llm/config.js';
+export type { LlmConfig, LlmProviderId, ThinkingLevel } from './llm/config.js';
+export { GROQ_DEFAULT_MODEL, GROQ_STRICT_MODELS } from './llm/groq.js';
 export { createLlmClientFromConfig } from './llm/factory.js';
 export { createLlmClient } from './llm/client.js';
 export type { LlmClient, LlmEvent, LlmStats } from './llm/client.js';
@@ -43,7 +44,13 @@ export type { LlmProvider } from './llm/types.js';
 
 // One case end to end, and the batch built on it (Phase 6). The web app and the batch command
 // both go through runCase, so they share one implementation.
-export { runCase, CaseFailure, CASE_FAILURE_CODES, DEFAULT_CASE_DEADLINE_MS } from './run-case.js';
+export {
+  runCase,
+  CaseFailure,
+  CASE_FAILURE_CODES,
+  DEFAULT_CASE_DEADLINE_MS,
+  failureFromGeneration,
+} from './run-case.js';
 export type { CaseFailureCode, CaseInput, CaseResult, RunCaseDeps } from './run-case.js';
 export {
   runBatch,
@@ -61,3 +68,13 @@ export type {
 } from './batch.js';
 export { systemClock } from './research/clock.js';
 export type { Clock } from './research/clock.js';
+
+// Section regeneration (Phase 7): what a kit stores of its research, and regenerating one section of it.
+export { buildResearchSnapshot } from './research-snapshot.js';
+export {
+  REGENERATION_REFUSAL_CODES,
+  RegenerationRefusal,
+  checkRegenerationSources,
+  generateRegeneration,
+} from './regenerate.js';
+export type { RegenerationRefusalCode } from './regenerate.js';

@@ -1,9 +1,21 @@
 import type { LlmClient } from '../llm/client.js';
-import type { ResearchResult } from '../research/research.js';
-import type { SourcePage } from '../research/types.js';
+import type { CrawlStatus, SourcePage } from '../research/types.js';
 import { isGrounded } from './grounding.js';
 import { clip, systemPrompt, untrustedBlock } from './prompt.js';
 import { briefSchema } from './schemas.js';
+
+/**
+ * What the brief stages read from research: the pages and the company name. A full ResearchResult fits,
+ * and so does a stored research snapshot, which is how a brief is regenerated without a new crawl.
+ */
+export type BriefPage = Pick<
+  SourcePage,
+  'url' | 'text' | 'interview_mentions' | 'fetched_at' | 'role' | 'depth' | 'description'
+>;
+export interface BriefResearch {
+  company: { name: string | null };
+  crawl: { status: CrawlStatus; pages: BriefPage[] };
+}
 
 const MAX_PAGES = 6;
 const MAX_PAGE_CHARS = 3000;
@@ -46,7 +58,7 @@ const ROLE = [
   '- If the sources do not say something, leave it out. If they say little, write little.',
 ].join('\n');
 
-const ROLE_RANK: Record<SourcePage['role'], number> = {
+const ROLE_RANK: Record<BriefPage['role'], number> = {
   home: 0,
   about: 1,
   'hiring-process': 2,
@@ -54,7 +66,7 @@ const ROLE_RANK: Record<SourcePage['role'], number> = {
   other: 4,
 };
 
-function usablePages(research: ResearchResult): SourcePage[] {
+export function usablePages(research: BriefResearch): BriefPage[] {
   return research.crawl.pages
     .filter((p) => p.text.trim().length >= MIN_USABLE_TEXT)
     .map((p, index) => ({ p, index }))
@@ -78,7 +90,7 @@ function scrubUrls(text: string, allowed: ReadonlySet<string>): string {
     .trim();
 }
 
-function companyName(research: ResearchResult): string {
+function companyName(research: BriefResearch): string {
   return research.company.name ?? 'this company';
 }
 
@@ -87,7 +99,7 @@ function companyName(research: ResearchResult): string {
  * description, or the opening of its text), or, with no pages, an explicit statement that nothing
  * could be retrieved. Used when the model is unavailable or its claims cannot be verified.
  */
-export function deterministicBrief(research: ResearchResult, reason?: string): CompanyBriefResult {
+export function deterministicBrief(research: BriefResearch, reason?: string): CompanyBriefResult {
   const pages = usablePages(research);
   const limitations: string[] = reason ? [reason] : [];
   const name = companyName(research);
@@ -140,7 +152,7 @@ export function deterministicBrief(research: ResearchResult, reason?: string): C
  */
 export async function generateCompanyBrief(
   llm: LlmClient,
-  research: ResearchResult,
+  research: BriefResearch,
 ): Promise<CompanyBriefResult> {
   const pages = usablePages(research);
   if (pages.length === 0) return deterministicBrief(research);

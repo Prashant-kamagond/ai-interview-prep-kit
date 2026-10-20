@@ -1,7 +1,7 @@
 /**
  * LIVE SMOKE TEST — not part of `pnpm test`, never run in CI.
  *
- * Runs the real generation stages against the real Gemini API with the key from .env, and
+ * Runs the real generation stages against the real provider API (LLM_PROVIDER, Gemini by default) with the key from .env, and
  * reports what that cost: model calls, retries, repairs, tokens and wall-clock time per stage.
  * Use it to check your own quota and latency (the numbers depend on your Google AI Studio
  * project) before relying on the five-case batch budget.
@@ -155,7 +155,7 @@ async function main(): Promise<void> {
   const budgetMs = Number(values.budget ?? 8 * 60_000);
   const jd = values.jd ? readFileSync(values.jd, 'utf8') : SAMPLE_JD;
 
-  const config = loadLlmConfig(); // fails with a clear message if LLM_API_KEY is missing
+  const config = loadLlmConfig(); // fails with a clear message if the selected provider's key is missing
   console.log(
     `model=${config.model} provider=${config.provider} thinking=${config.thinkingLevel} ` +
       `timeout=${config.requestTimeoutMs}ms retries=${config.maxRetries} concurrency=${config.maxConcurrency}`,

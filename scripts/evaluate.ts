@@ -12,7 +12,7 @@
  *   1  an unexpected error
  *   2  bad command-line arguments
  *   3  the input file is missing, unreadable, not JSON, or not an array
- *   4  configuration problem (for example no LLM_API_KEY, or an invalid setting)
+ *   4  configuration problem (for example no API key for the selected LLM_PROVIDER, or an invalid setting)
  *   5  the output file could not be written
  */
 import { readFileSync } from 'node:fs';

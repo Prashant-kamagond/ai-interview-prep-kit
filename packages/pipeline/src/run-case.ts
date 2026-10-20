@@ -1,4 +1,4 @@
-import { generationRequestSchema, type Kit } from '@trao/contracts';
+import { generationRequestSchema, type Kit, type ResearchSnapshot } from '@trao/contracts';
 import type { LlmClient, LlmStats } from './llm/client.js';
 import { LlmError, type LlmErrorCode } from './llm/errors.js';
 import { systemClock, type Clock } from './research/clock.js';
@@ -9,6 +9,7 @@ import {
   type ResearchResult,
 } from './research/research.js';
 import type { CrawlStatus } from './research/types.js';
+import { buildResearchSnapshot } from './research-snapshot.js';
 import { GenerationFailure, generateKit, type GenerationResult } from './stages/generate.js';
 
 /**
@@ -97,6 +98,11 @@ export interface CaseResult {
     hiringPageFound: boolean;
     companyNameInferred: boolean;
   };
+  /**
+   * The research this kit was built from, copied for later section regeneration (see
+   * research-snapshot.ts). Bounded and schema-checked; present whenever the case succeeded.
+   */
+  researchSnapshot: ResearchSnapshot;
   stats: LlmStats;
   timingsMs: Record<string, number>;
 }
@@ -250,6 +256,7 @@ export async function runCase(input: CaseInput, deps: RunCaseDeps): Promise<Case
       hiringPageFound: research.crawl.hiring.found,
       companyNameInferred: research.company.inferred,
     },
+    researchSnapshot: buildResearchSnapshot(research),
     stats: result.stats,
     timingsMs: { ...result.timingsMs, research: researchMs, total: clock.now() - started },
   };

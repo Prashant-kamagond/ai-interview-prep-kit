@@ -81,6 +81,7 @@ function stubResult(): CaseResult {
       hiringPageFound: false,
       companyNameInferred: false,
     },
+    researchSnapshot: { status: 'unavailable', reason: 'not_persisted' },
     stats: {} as CaseResult['stats'],
     timingsMs: {},
   };
