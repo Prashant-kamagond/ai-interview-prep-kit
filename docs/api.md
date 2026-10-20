@@ -1,4 +1,4 @@
-# API reference (Phase 3)
+# API reference
 
 Everything below is implemented and covered by tests unless it is listed under **Limitations**.
 Source: `apps/api/src`. Request/response schemas shared with the frontend: `packages/contracts`.
@@ -9,21 +9,27 @@ Source: `apps/api/src`. Request/response schemas shared with the frontend: `pack
 carry an `Origin` header equal to `WEB_ORIGIN` (otherwise `403 CSRF_ORIGIN_REJECTED`); this applies to
 every `POST`/`PUT`/`DELETE`.
 
-| Method | Path                   | Auth | Origin | Success                         | Notes                                                                                |
-| ------ | ---------------------- | ---- | ------ | ------------------------------- | ------------------------------------------------------------------------------------ |
-| GET    | `/health`              | no   | no     | `200 {status:"ok"}`             | Liveness. Never touches the database.                                                |
-| GET    | `/ready`               | no   | no     | `200 {status:"ready"}`          | Readiness. `503 {status:"unavailable"}` if MongoDB does not answer, with no detail.  |
-| POST   | `/auth/register`       | no   | yes    | `201 {user}` + cookie           | Rate limited. `409 EMAIL_TAKEN`.                                                     |
-| POST   | `/auth/login`          | no   | yes    | `200 {user}` + cookie           | Rate limited. `401 INVALID_CREDENTIALS` (same for unknown email and wrong password). |
-| POST   | `/auth/logout`         | no   | yes    | `204`                           | Idempotent. Deletes the session server-side and clears the cookie.                   |
-| GET    | `/auth/me`             | yes  | no     | `200 {user}`                    |                                                                                      |
-| GET    | `/kits`                | yes  | no     | `200 {kits:[summary]}`          | Own kits only, most recently edited first.                                           |
-| POST   | `/kits`                | yes  | yes    | `201 {id,version,kit,warnings}` | Body `{kit}`. `422 KIT_INVALID` if validation errors.                                |
-| GET    | `/kits/:id`            | yes  | no     | `200 {id,version,kit,…}`        | `404` if missing **or not yours**.                                                   |
-| PUT    | `/kits/:id`            | yes  | yes    | `200 {id,version,kit,warnings}` | Body `{version, kit}`. `409 VERSION_CONFLICT` if stale.                              |
-| DELETE | `/kits/:id`            | yes  | yes    | `204`                           | `404` if missing or not yours.                                                       |
-| POST   | `/generation-jobs`     | yes  | yes    | `202 {job, deduplicated}`       | `Location` header. Body `{jd, company_url, days}`.                                   |
-| GET    | `/generation-jobs/:id` | yes  | no     | `200 {job}`                     | `404` if missing or not yours.                                                       |
+| Method | Path                               | Auth | Origin | Success                                   | Notes                                                                                                                                           |
+| ------ | ---------------------------------- | ---- | ------ | ----------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| GET    | `/health`                          | no   | no     | `200 {status:"ok"}`                       | Liveness. Never touches the database.                                                                                                           |
+| GET    | `/ready`                           | no   | no     | `200 {status:"ready"}`                    | Readiness. `503 {status:"unavailable"}` if MongoDB does not answer, with no detail.                                                             |
+| POST   | `/auth/register`                   | no   | yes    | `201 {user}` + cookie                     | Rate limited. `409 EMAIL_TAKEN`.                                                                                                                |
+| POST   | `/auth/login`                      | no   | yes    | `200 {user}` + cookie                     | Rate limited. `401 INVALID_CREDENTIALS` (same for unknown email and wrong password).                                                            |
+| POST   | `/auth/logout`                     | no   | yes    | `204`                                     | Idempotent. Deletes the session server-side and clears the cookie.                                                                              |
+| GET    | `/auth/me`                         | yes  | no     | `200 {user}`                              |                                                                                                                                                 |
+| GET    | `/kits`                            | yes  | no     | `200 {kits:[summary]}`                    | Own kits only, most recently edited first.                                                                                                      |
+| POST   | `/kits`                            | yes  | yes    | `201 {id,version,kit,warnings}`           | Body `{kit}`. `422 KIT_INVALID` if validation errors.                                                                                           |
+| GET    | `/kits/:id`                        | yes  | no     | `200 {id,version,kit,…}`                  | `404` if missing **or not yours**.                                                                                                              |
+| PUT    | `/kits/:id`                        | yes  | yes    | `200 {id,version,kit,warnings}`           | Body `{version, kit}`. `409 VERSION_CONFLICT` if stale.                                                                                         |
+| DELETE | `/kits/:id`                        | yes  | yes    | `204`                                     | `404` if missing or not yours.                                                                                                                  |
+| POST   | `/generation-jobs`                 | yes  | yes    | `202 {job, deduplicated}`                 | `Location` header. Body `{jd, company_url, days}`.                                                                                              |
+| GET    | `/generation-jobs/:id`             | yes  | no     | `200 {job}`                               | `404` if missing or not yours.                                                                                                                  |
+| GET    | `/kits/:id/builder`                | yes  | no     | `200 {id,version,kit,builder,research,…}` | The kit with its builder state and research snapshot. `404` if missing or not yours. Creates the state for an older kit on first use.           |
+| POST   | `/kits/:id/operations`             | yes  | yes    | `200 {…same document}`                    | Body `{version, operations[1..100]}`, applied all or nothing. `409 VERSION_CONFLICT` carries the current document. See "Builder endpoints".     |
+| GET    | `/kits/:id/practice`               | yes  | no     | `200 {kit_id,cards}`                      | The user's practice progress for the kit (cards the kit still has). See [`practice.md`](practice.md).                                           |
+| PUT    | `/kits/:id/practice/cards/:cardId` | yes  | yes    | `200 {card,duplicate}`                    | Body `{confidence:1-3, attempt_id}`; a repeated `attempt_id` is recorded once. `404` unknown kit or card.                                       |
+| DELETE | `/kits/:id/practice`               | yes  | yes    | `204`                                     | Forgets this kit's progress for the user.                                                                                                       |
+| POST   | `/kits/:id/regenerations`          | yes  | yes    | `202 {job, deduplicated}`                 | Body `{section}` or `{section:"questions", category}`. `422 REGENERATION_UNAVAILABLE`, `409 REGENERATION_IN_PROGRESS`. See "Regeneration jobs". |
 
 Rate limits (per IP, in memory): register/login `AUTH_RATE_LIMIT_MAX` per 15 minutes; everything else
 `API_RATE_LIMIT_MAX` per minute. Exceeding either gives `429 RATE_LIMITED`.
@@ -145,14 +151,76 @@ queued ──► running ──► succeeded
   `(userId, inputHash)` where `active: true`** makes the database the arbiter: of N simultaneous
   identical requests exactly one insert wins, the others read the winner back and return it with
   `deduplicated: true`. Once a job is terminal (`active: false`) the same request creates a new job.
-- The status response exposes `id, status, stage, progress, kit_id, error, timestamps` — never the
-  request payload, its hash or the owner.
+- The status response exposes `id, kind, status, stage, progress, kit_id, error, report, timestamps` —
+  never the request payload, its hash or the owner. `kind` is `generate` or `regenerate`; `report` is only
+  set for a finished regeneration.
+
+**Concurrency limits.** Because jobs run in this process, how many may be active is bounded: a user may
+have `MAX_ACTIVE_JOBS_PER_USER` (3) queued or running jobs (generation and regeneration together; the next
+request gets `429 TOO_MANY_ACTIVE_JOBS`), and the server `MAX_ACTIVE_JOBS_TOTAL` (25) (`503 SERVER_BUSY`). A request
+identical to one already running is never refused: it joins that job. The check counts and then inserts, so a
+burst of simultaneous requests can overshoot a limit by the size of the burst; it bounds the load, it is not a
+transaction. The limits are constants in `services/jobs.ts`, not settings.
 
 **In-process limitation.** Jobs run inside the API process with no queue. The job document is a
 durable record, but MongoDB cannot resume an interrupted task. At startup `failInterrupted()` marks
 any job still `active` as `failed` (`SERVER_RESTARTED`) so users see an honest terminal state and can
 resubmit. That sweep assumes a single API instance; with several it would fail jobs running on the
 others.
+
+## Builder endpoints
+
+The model (provenance, pins, tombstones, id counters) and the editing rules are in
+[`builder.md`](builder.md). Responses are validated against `builderDocumentResponseSchema` before
+they are sent.
+
+- `GET /kits/:id/builder` returns `{id, version, kit, builder, research, created_at, updated_at,
+warnings?}`. A kit without builder state gets it created once (deterministically; the version does not
+  change). Stored state that is inconsistent is answered `500 BUILDER_STATE_CORRUPT` with a generic
+  message and is never silently repaired.
+- `POST /kits/:id/operations` takes `{version, operations}` (1 to 100 operations). The server loads the
+  latest document, checks `version`, applies the operations with the shared pure builder and writes kit,
+  state and the incremented version in **one** document update filtered on the version, so of several
+  writers from one version exactly one succeeds. Operations that change nothing do not create a version.
+  - `200` the updated document.
+  - `400 VALIDATION_ERROR` the body is malformed; `400 INVALID_OPERATION` an operation is not a
+    supported one (`details.operation_index`).
+  - `422 OPERATION_REJECTED` an operation cannot apply (`details.reason`: `NOT_FOUND`,
+    `UNKNOWN_REFERENCE`, `INDEX_OUT_OF_RANGE`; `details.operation_index`); `422 KIT_INVALID`.
+  - `409 VERSION_CONFLICT` with `details: {current_version, current: <document>}`. Nothing was applied and
+    the server never replays the operations on the newer version.
+- The original whole-kit `PUT /kits/:id` is unchanged for clients, and now reconciles builder state
+  (see `builder.md`); `409 BUILDER_CONFLICT` if the kit re-adds a deleted item's id.
+
+## Regeneration jobs
+
+`POST /kits/:id/regenerations` accepts `{section: "brief"}`, `{section: "questions", category}` (one of
+`technical`, `behavioural`, `system-design`, `company-fit`) or `{section: "schedule"}`.
+
+- Ownership is enforced as everywhere (`404` for a missing or foreign kit).
+- A section whose source is missing is refused immediately, with no job:
+  `422 REGENERATION_UNAVAILABLE`, `details: {reason, section, category?}` where `reason` is
+  `RESEARCH_UNAVAILABLE`, `NO_USABLE_PAGES`, `NO_COMPANY_EVIDENCE` or `NO_REQUIREMENTS_FOR_CATEGORY`.
+- Only one regeneration per kit at a time: another section while one runs gives
+  `409 REGENERATION_IN_PROGRESS` with `details.job_id`; the same request joins the running job
+  (`deduplicated: true`).
+- The job (`kind: "regenerate"`) is followed with `GET /generation-jobs/:id`: stages `loading` (5),
+  `generating` (30, not for the schedule), `applying` (90), `done` (100). On success `kit_id` is the kit and
+  `report` is `{section, category, kept, replaced, added, skipped:[{reason, detail}], days, gaps}`.
+- The job reads the kit at a version and writes only if the kit is still at it. Failure codes (stable,
+  curated messages): the generation `LLM_*` codes, `VERSION_CONFLICT` (the kit changed while it ran;
+  nothing applied), `RESEARCH_UNAVAILABLE`, `NO_USABLE_PAGES`, `NO_COMPANY_EVIDENCE`,
+  `NO_REQUIREMENTS_FOR_CATEGORY`, `BRIEF_NOT_VERIFIED`, `NO_QUESTIONS_GENERATED`, `NOTHING_TO_GENERATE`,
+  `REGENERATION_REJECTED`, `KIT_NOT_FOUND`, `INTERNAL_ERROR`. A failed job leaves the kit unchanged.
+- Regenerated content is merged by the pure `applyRegeneration`; it cannot be submitted through
+  `POST /kits/:id/operations`.
+
+## Practice endpoints
+
+Stored in the `practice_cards` collection, one document per `(userId, kitId, cardId)` (unique index
+`practice_card_unique`). Ownership is enforced by loading the kit as the caller first (`404` for a missing or
+foreign kit, the same answer). Full behaviour, the ordering rule and what is and is not stored are in
+[`practice.md`](practice.md). Deleting a kit deletes its practice documents.
 
 ## Indexes
 
@@ -176,8 +244,8 @@ others.
 - Sessions have an absolute lifetime only: no sliding expiry, no "sign out everywhere", no session
   list. There is no account deletion.
 - `PUT /kits/:id` replaces the whole kit. Version checking is per kit, so two edits to different
-  parts still conflict. Granular, merge-based builder updates (generated/edited/pinned/deleted
-  state) are Phase 7. Fields outside Appendix A are dropped by validation.
+  parts still conflict (the builder endpoints exist for granular edits and the web editor uses them).
+  Fields outside Appendix A are dropped by validation.
 - Deleting a kit does not touch jobs that reference it.
 - Duplicate protection covers only in-progress jobs. A previously _completed_ identical request creates a
   new job and a new kit (reuse versus regenerate is still undecided).

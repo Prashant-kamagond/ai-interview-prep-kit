@@ -8,9 +8,15 @@ on:
 permissions:
   contents: read
 
+# A newer push to the same branch makes the older run pointless.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   verify:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     services:
       # Real MongoDB for the integration suite. No credentials: it only listens on the runner.
       mongo:
@@ -24,6 +30,10 @@ jobs:
           --health-retries 10
     env:
       TEST_MONGODB_URI: mongodb://localhost:27017/
+      NEXT_TELEMETRY_DISABLED: '1'
+      # No model key exists in CI, on purpose. Every test uses a fake model and local fixture sites, so the
+      # pipeline never makes a live inference request. (Blank, so a key can never leak in from elsewhere.)
+      LLM_API_KEY: ''
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -37,6 +47,16 @@ jobs:
       - run: pnpm typecheck
       - run: pnpm test
       - run: pnpm test:integration
+      # The default build is permissive (it warns when NEXT_PUBLIC_API_URL is unset) so that local builds work.
       - run: pnpm build
+      # A deployment builds with `build:production`, which refuses an unset, localhost or non-https API address.
+      # The address below is a placeholder: this build is only checked, never deployed.
+      - name: Production build (strict API address check)
+        run: pnpm build:production
+        env:
+          NEXT_PUBLIC_API_URL: https://api.example.com
+      # The recorded test evidence is part of the repository. No step above may change a tracked file.
+      - name: Tracked files unchanged by the run
+        run: git diff --exit-code
       - name: Dependency audit
         run: pnpm audit --audit-level=high --prod

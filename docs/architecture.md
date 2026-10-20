@@ -414,7 +414,7 @@ Case-level concurrency and batching do not reduce the request count, so they do 
 - **Thinking tokens were reported as 0** in the live runs although the earlier probe showed some; usage fields
   are taken as reported by the API.
 - **English-oriented prompts and heuristics.**
-- **Only Gemini is implemented.** The `LlmProvider` interface is the seam for another.
+- **Gemini is the measured provider; Groq is implemented but untested live.** The `LlmProvider` interface is the seam (see `llm-providers.md`).
 
 ## Case runner and batch (`packages/pipeline`, `scripts/evaluate.ts`) — implemented in Phase 6
 
