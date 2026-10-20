@@ -2,6 +2,7 @@ import type { Db } from 'mongodb';
 import { collections } from '../db.js';
 import { jobRepository } from './jobs.js';
 import { kitRepository } from './kits.js';
+import { practiceRepository } from './practice.js';
 import { sessionRepository } from './sessions.js';
 import { userRepository } from './users.js';
 
@@ -12,6 +13,7 @@ export function createRepositories(db: Db) {
     sessions: sessionRepository(c),
     kits: kitRepository(c),
     jobs: jobRepository(c),
+    practice: practiceRepository(c),
   };
 }
 

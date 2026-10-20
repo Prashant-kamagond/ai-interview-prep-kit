@@ -15,9 +15,18 @@ import { createRepositories, type Repositories } from './repositories/index.js';
 import { authRouter } from './routes/auth.js';
 import { healthRouter } from './routes/health.js';
 import { jobsRouter } from './routes/jobs.js';
+import { builderRouter } from './routes/builder.js';
+import { practiceRouter } from './routes/practice.js';
+import { createPracticeService } from './services/practice.js';
 import { kitsRouter } from './routes/kits.js';
 import { createAuthService } from './services/auth.js';
 import { createJobService, type JobService } from './services/jobs.js';
+import { createBuilderService } from './services/builder.js';
+import { createRegenerationService } from './services/regeneration.js';
+import {
+  createRegenerationRunner,
+  type RegenerationRunnerOptions,
+} from './jobs/regeneration-runner.js';
 import { createKitService } from './services/kits.js';
 
 export interface AppDeps {
@@ -28,6 +37,8 @@ export interface AppDeps {
   runner?: JobRunner;
   /** Builds the runner once the repositories exist (the real pipeline needs them to store kits). Wins over `runner`. */
   createRunner?: (repos: Repositories) => JobRunner;
+  /** Model and time settings for regeneration jobs (tests inject a fake model client). */
+  regeneration?: Pick<RegenerationRunnerOptions, 'createLlm' | 'env' | 'deadlineMs'>;
 }
 
 export interface AppContext {
@@ -45,11 +56,26 @@ export function createApp({
   logger,
   runner = unimplementedRunner,
   createRunner,
+  regeneration: regenerationOptions = {},
 }: AppDeps): AppContext {
   const repos = createRepositories(db);
   const auth = createAuthService(repos, config);
-  const kits = createKitService(repos);
-  const jobs = createJobService(repos, createRunner ? createRunner(repos) : runner, logger);
+  const kits = createKitService(repos, logger);
+  const builder = createBuilderService(repos, logger);
+  const regenerationRunner = createRegenerationRunner({
+    repos,
+    builder,
+    logger,
+    ...regenerationOptions,
+  });
+  const jobs = createJobService(
+    repos,
+    createRunner ? createRunner(repos) : runner,
+    logger,
+    regenerationRunner,
+  );
+  const regeneration = createRegenerationService({ repos, jobs, builder });
+  const practice = createPracticeService(repos);
   const authenticated = requireAuth(auth, config);
 
   const app = express();
@@ -85,6 +111,8 @@ export function createApp({
     }),
   );
   app.use(kitsRouter({ kits, requireAuth: authenticated }));
+  app.use(builderRouter({ builder, regeneration, requireAuth: authenticated }));
+  app.use(practiceRouter({ practice, requireAuth: authenticated }));
   app.use(jobsRouter({ jobs, requireAuth: authenticated }));
 
   app.use(routeNotFound);

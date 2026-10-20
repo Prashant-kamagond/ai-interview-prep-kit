@@ -1,11 +1,12 @@
 import { MongoClient, MongoServerError, type Collection, type Db } from 'mongodb';
-import type { JobDoc, KitDoc, SessionDoc, UserDoc } from './models.js';
+import type { JobDoc, KitDoc, PracticeCardDoc, SessionDoc, UserDoc } from './models.js';
 
 export const COLLECTIONS = {
   users: 'users',
   sessions: 'sessions',
   kits: 'kits',
   jobs: 'generation_jobs',
+  practice: 'practice_cards',
 } as const;
 
 export interface Collections {
@@ -13,6 +14,7 @@ export interface Collections {
   sessions: Collection<SessionDoc>;
   kits: Collection<KitDoc>;
   jobs: Collection<JobDoc>;
+  practice: Collection<PracticeCardDoc>;
 }
 
 export function collections(db: Db): Collections {
@@ -21,6 +23,7 @@ export function collections(db: Db): Collections {
     sessions: db.collection<SessionDoc>(COLLECTIONS.sessions),
     kits: db.collection<KitDoc>(COLLECTIONS.kits),
     jobs: db.collection<JobDoc>(COLLECTIONS.jobs),
+    practice: db.collection<PracticeCardDoc>(COLLECTIONS.practice),
   };
 }
 
@@ -63,6 +66,13 @@ export async function ensureIndexes(db: Db): Promise<void> {
     },
   );
   await c.jobs.createIndex({ userId: 1, createdAt: -1 }, { name: 'userId_createdAt' });
+
+  // Practice: one record per (user, kit, card). The unique index is what makes recording a rating atomic
+  // and lets a repeated request be recognised instead of double counted.
+  await c.practice.createIndex(
+    { userId: 1, kitId: 1, cardId: 1 },
+    { unique: true, name: 'practice_card_unique' },
+  );
   // Startup sweep for jobs a previous process left active.
   await c.jobs.createIndex(
     { createdAt: 1 },

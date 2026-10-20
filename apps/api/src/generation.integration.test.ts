@@ -92,6 +92,22 @@ describe('generation jobs with the real pipeline runner', () => {
 
     const list = await c.get('/kits');
     expect(list.body.kits).toHaveLength(1);
+
+    // The kit, its builder state and the research it was built from were stored together.
+    expect(job).toMatchObject({ kind: 'generate', report: null });
+    const builder = await c.get(`/kits/${job.kit_id}/builder`);
+    expect(builder.status).toBe(200);
+    expect(builder.body.research.status).toBe('available');
+    expect(builder.body.research.company_url).toBe(s.url('/'));
+    expect(builder.body.research.pages.map((p: { url: string }) => p.url).sort()).toEqual(
+      [...kit.source.pages_used].sort(),
+    );
+    expect(builder.body.research.pages.every((p: { text: string }) => p.text.length <= 4000)).toBe(
+      true,
+    );
+    expect(
+      builder.body.builder.questions.every((m: { origin: string }) => m.origin === 'generated'),
+    ).toBe(true);
   });
 
   it('keeps the generated kit and the job private to their owner', async () => {

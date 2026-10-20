@@ -1,5 +1,10 @@
 import { ObjectId } from 'mongodb';
-import type { GenerationRequest, JobStatus } from '@trao/contracts';
+import type {
+  GenerationRequest,
+  JobStatus,
+  RegenerationReport,
+  RegenerationRequest,
+} from '@trao/contracts';
 import { isDuplicateKeyError, type Collections } from '../db.js';
 import { allowedSources, isTerminal } from '../jobs/state.js';
 import type { JobDoc, JobError } from '../models.js';
@@ -7,7 +12,8 @@ import type { JobDoc, JobError } from '../models.js';
 export interface NewJob {
   userId: ObjectId;
   inputHash: string;
-  input: GenerationRequest;
+  input?: GenerationRequest;
+  regeneration?: { kitId: ObjectId; request: RegenerationRequest };
 }
 
 export interface JobPatch {
@@ -15,6 +21,7 @@ export interface JobPatch {
   progress?: number | null;
   kitId?: ObjectId | null;
   error?: JobError | null;
+  report?: RegenerationReport | null;
 }
 
 const MAX_INSERT_ATTEMPTS = 3;
@@ -35,7 +42,12 @@ export function jobRepository(c: Collections) {
           status: 'queued',
           active: true,
           inputHash: newJob.inputHash,
-          input: newJob.input,
+          ...(newJob.input ? { input: newJob.input } : {}),
+          kind: newJob.regeneration ? 'regenerate' : 'generate',
+          ...(newJob.regeneration
+            ? { regeneration: { ...newJob.regeneration, baseVersion: null } }
+            : {}),
+          report: null,
           stage: null,
           progress: null,
           kitId: null,
@@ -60,6 +72,30 @@ export function jobRepository(c: Collections) {
         }
       }
       throw new Error('Could not create or find an active job after repeated attempts');
+    },
+
+    /** How many jobs are queued or running: for one user when `userId` is given, otherwise everywhere. */
+    countActive(userId?: ObjectId): Promise<number> {
+      return c.jobs.countDocuments(userId ? { active: true, userId } : { active: true });
+    },
+
+    /** The queued or running job for this exact input, if any. */
+    findActive(userId: ObjectId, inputHash: string): Promise<JobDoc | null> {
+      return c.jobs.findOne({ userId, inputHash, active: true });
+    },
+
+    /** The regeneration still queued or running for this kit, if any. */
+    findActiveRegeneration(userId: ObjectId, kitId: ObjectId): Promise<JobDoc | null> {
+      return c.jobs.findOne({
+        userId,
+        active: true,
+        kind: 'regenerate',
+        'regeneration.kitId': kitId,
+      });
+    },
+
+    async recordBaseVersion(id: ObjectId, version: number): Promise<void> {
+      await c.jobs.updateOne({ _id: id }, { $set: { 'regeneration.baseVersion': version } });
     },
 
     findOwned(userId: ObjectId, id: ObjectId): Promise<JobDoc | null> {

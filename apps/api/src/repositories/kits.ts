@@ -1,5 +1,5 @@
 import { ObjectId } from 'mongodb';
-import type { Kit } from '@trao/contracts';
+import type { BuilderState, Kit, ResearchSnapshot } from '@trao/contracts';
 import type { Collections } from '../db.js';
 import type { KitDoc } from '../models.js';
 
@@ -10,12 +10,18 @@ export type KitSummaryDoc = Pick<KitDoc, '_id' | 'version' | 'createdAt' | 'upda
 /** Every method takes the owner's id and filters on it: ownership is part of the query itself. */
 export function kitRepository(c: Collections) {
   return {
-    async insert(userId: ObjectId, kit: Kit): Promise<KitDoc> {
+    async insert(
+      userId: ObjectId,
+      kit: Kit,
+      extras: { builder?: BuilderState; research?: ResearchSnapshot } = {},
+    ): Promise<KitDoc> {
       const now = new Date();
       const doc: KitDoc = {
         _id: new ObjectId(),
         userId,
         kit,
+        ...(extras.builder ? { builder: extras.builder } : {}),
+        ...(extras.research ? { research: extras.research } : {}),
         version: 1,
         createdAt: now,
         updatedAt: now,
@@ -61,6 +67,45 @@ export function kitRepository(c: Collections) {
       return c.kits.findOneAndUpdate(
         { _id: id, userId, version: expectedVersion },
         { $set: { kit, updatedAt: new Date() }, $inc: { version: 1 } },
+        { returnDocument: 'after' },
+      );
+    },
+
+    /**
+     * Stores builder state on a kit that has none. The filter requires the kit to still be at
+     * `version` with no state, so of several requests that initialise the same kit at once exactly one
+     * writes, and a kit changed in the meantime is left for the caller to read again. The version is
+     * not incremented: initialising metadata is not a change to the kit.
+     */
+    async initBuilderIfMissing(
+      userId: ObjectId,
+      id: ObjectId,
+      version: number,
+      builder: BuilderState,
+    ): Promise<boolean> {
+      const res = await c.kits.updateOne(
+        { _id: id, userId, version, builder: { $exists: false } },
+        { $set: { builder } },
+      );
+      return res.modifiedCount === 1;
+    },
+
+    /**
+     * Replaces the kit and its builder state in ONE document update, only if the kit is still at
+     * `expectedVersion`. MongoDB applies a single-document update atomically, so the kit, the state and
+     * the new version are all written or none are, and of several writers from the same version exactly
+     * one matches. Research is deliberately not touched. Null means nothing matched.
+     */
+    replaceDocumentIfVersion(
+      userId: ObjectId,
+      id: ObjectId,
+      expectedVersion: number,
+      kit: Kit,
+      builder: BuilderState,
+    ): Promise<KitDoc | null> {
+      return c.kits.findOneAndUpdate(
+        { _id: id, userId, version: expectedVersion },
+        { $set: { kit, builder, updatedAt: new Date() }, $inc: { version: 1 } },
         { returnDocument: 'after' },
       );
     },

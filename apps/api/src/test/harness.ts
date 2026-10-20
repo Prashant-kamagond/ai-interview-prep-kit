@@ -3,7 +3,7 @@ import { createServer, type Server } from 'node:http';
 import { MongoClient, MongoNetworkError, type Db } from 'mongodb';
 import pino from 'pino';
 import request from 'supertest';
-import { createApp, type AppContext } from '../app.js';
+import { createApp, type AppContext, type AppDeps } from '../app.js';
 import type { Config } from '../config.js';
 import { ensureIndexes } from '../db.js';
 import type { JobRunInput, JobRunner } from '../jobs/runner.js';
@@ -86,6 +86,8 @@ export async function createHarness(
     runner?: JobRunner;
     /** Builds the runner from the repositories (for the real pipeline runner). */
     createRunner?: (repos: Repositories) => JobRunner;
+    /** Model and time settings for regeneration jobs. */
+    regeneration?: AppDeps['regeneration'];
   } = {},
 ): Promise<Harness> {
   const client = new MongoClient(TEST_MONGODB_URI, { serverSelectionTimeoutMS: 3000 });
@@ -113,6 +115,7 @@ export async function createHarness(
     logger: pino({ level: 'silent' }),
     ...(options.runner ? { runner: options.runner } : {}),
     ...(options.createRunner ? { createRunner: options.createRunner } : {}),
+    ...(options.regeneration ? { regeneration: options.regeneration } : {}),
   });
 
   const server = createServer(ctx.app);

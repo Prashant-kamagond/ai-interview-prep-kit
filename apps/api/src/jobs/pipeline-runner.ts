@@ -1,15 +1,10 @@
 import { ObjectId } from 'mongodb';
-import {
-  CaseFailure,
-  LlmError,
-  createLlmClientFromConfig,
-  loadLlmConfig,
-  runCase,
-  type RunCaseDeps,
-} from '@trao/pipeline';
+import { createBuilderDocument } from '@trao/core';
+import { CaseFailure, runCase, type RunCaseDeps } from '@trao/pipeline';
 import type { Config } from '../config.js';
 import type { Logger } from '../logger.js';
 import type { Repositories } from '../repositories/index.js';
+import { resolveCreateLlm } from './llm.js';
 import { JobFailure, type JobRunner } from './runner.js';
 
 export interface PipelineRunnerOptions {
@@ -35,25 +30,9 @@ export interface PipelineRunnerOptions {
  * still serves everything else and fails generation jobs with LLM_NOT_CONFIGURED.
  */
 export function createPipelineRunner(options: PipelineRunnerOptions): JobRunner {
-  const env = options.env ?? process.env;
-
-  function resolveCreateLlm(): RunCaseDeps['createLlm'] {
-    if (options.createLlm) return options.createLlm;
-    try {
-      const config = loadLlmConfig(env);
-      return ({ deadline, clock }) => createLlmClientFromConfig(config, { deadline, clock });
-    } catch (err) {
-      if (err instanceof LlmError) throw new JobFailure('LLM_NOT_CONFIGURED', err.message);
-      throw new JobFailure(
-        'CONFIGURATION_ERROR',
-        'The language model settings on the server are invalid.',
-      );
-    }
-  }
-
   return {
     async run(job, ctx) {
-      const createLlm = resolveCreateLlm();
+      const createLlm = resolveCreateLlm(options);
       let result;
       try {
         result = await runCase(job.input, {
@@ -87,7 +66,13 @@ export function createPipelineRunner(options: PipelineRunnerOptions): JobRunner 
         );
       }
 
-      const doc = await options.repos.kits.insert(new ObjectId(job.userId), result.kit);
+      // The kit, its builder state and the research it was built from are stored in one insert, so a
+      // regeneration later has exactly the evidence the kit was made from.
+      const started = createBuilderDocument(result.kit);
+      const doc = await options.repos.kits.insert(new ObjectId(job.userId), result.kit, {
+        ...(started.ok ? { builder: started.document.state } : {}),
+        research: result.researchSnapshot,
+      });
       return { kitId: doc._id.toHexString() };
     },
   };
