@@ -1,8 +1,8 @@
 # Deployment
 
-**Status: prepared, not deployed.** Nothing in this repository has been deployed, and no hosting account or
-paid service has been created. A `vercel.json` for Vercel Services now exists (see "Vercel" below); it has not
-been run on Vercel. This document says what a deployment needs, so that it can be done later. The assignment requires a public deployment with frontend and backend reachable,
+**Status: deployed to production on Vercel** (https://ai-interview-prep-kit-green.vercel.app/, 2026-10-21), with the database on a MongoDB Atlas
+free cluster. The Vercel Services configuration in `vercel.json` built and runs; see "Vercel" below for what
+was verified and the remaining limits. This document says what a deployment needs, so that it can be done later. The assignment requires a public deployment with frontend and backend reachable,
 environment variables handled securely and documented, and says free tiers are expected. It names no platform.
 
 ## Vercel (prepared, not deployed)

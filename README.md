@@ -8,6 +8,12 @@
 
 <br/>
 
+<a href="https://ai-interview-prep-kit-green.vercel.app/"><img alt="Open the live app" src="https://img.shields.io/badge/%F0%9F%9A%80%20LIVE%20DEMO-open%20the%20app-brightgreen?style=for-the-badge&logo=vercel&logoColor=white"/></a>
+
+**Live at [ai-interview-prep-kit-green.vercel.app](https://ai-interview-prep-kit-green.vercel.app/)** &nbsp;·&nbsp; built and deployed by **[Prashant Kamagond](https://github.com/Prashant-kamagond)**
+
+<br/>
+
 ![TypeScript](https://img.shields.io/badge/TypeScript-6-3178C6?logo=typescript&logoColor=white)
 ![Next.js](https://img.shields.io/badge/Next.js-16-000000?logo=nextdotjs&logoColor=white)
 ![React](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=black)
@@ -23,8 +29,8 @@
 ![Gemini](https://img.shields.io/badge/LLM-Google%20Gemini-4285F4?logo=googlegemini&logoColor=white)
 ![Unit tests](https://img.shields.io/badge/unit%20tests-1843%20passing-brightgreen)
 ![Integration tests](https://img.shields.io/badge/integration%20tests-233%20passing-brightgreen)
-![Requirements](https://img.shields.io/badge/requirements-56%2F68%20complete-blue)
-![Deployed](https://img.shields.io/badge/deployed-not%20yet-lightgrey)
+![Requirements](https://img.shields.io/badge/requirements-57%2F68%20complete-blue)
+[![Deployed](https://img.shields.io/badge/deployed-Vercel%20live-brightgreen?logo=vercel&logoColor=white)](https://ai-interview-prep-kit-green.vercel.app/)
 
 **[⚡ Quick start](#-quick-start-everything-through-make)** ·
 **[🧭 How it works](#-how-it-works)** ·
@@ -326,23 +332,23 @@ both builds and a dependency audit, with **no API key** present.
 
 <div align="center">
 
-**68 requirements traced** · 🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟨🟨🟧⬜ ·
-**56 ✅ complete · 6 🟨 partial · 2 🟧 unverified · 4 ⬜ missing** (each square is about 3.4 requirements)
+**68 requirements traced** · 🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟨🟧⬜ ·
+**57 ✅ complete · 6 🟨 partial · 2 🟧 unverified · 3 ⬜ missing** (each square is about 3.4 requirements)
 
 </div>
 
-| Area                                             | Status | Notes                                                                                            |
-| ------------------------------------------------ | :----: | ------------------------------------------------------------------------------------------------ |
-| Contracts, deterministic core, backend, auth     |   ✅   | Automated tests, real MongoDB                                                                    |
-| Research engine and generation pipeline          |   ✅   | Tested with fakes and fixture sites                                                              |
-| Web app: create, builder, regeneration, practice |   ✅   | Component tests with a mocked API; used by hand locally                                          |
-| Groq provider                                    |   🟨   | Mocked tests, plus **one** live run (valid kit, 45 s, 4 of 10 requests rate-limited and retried) |
-| Gemini provider                                  |   🟨   | Measured earlier; the free quota (20 requests a day) allows about two cases a day                |
-| Five cases in 15 minutes with a **real** model   |   ⬜   | Shown only with a fake model (26 s of pipeline overhead); not demonstrated live                  |
-| Browser and cookie/CORS end-to-end tests         |   ⬜   | No Playwright; HTTP-level and jsdom tests only                                                   |
-| Public deployment                                |   ⬜   | **Prepared, not deployed**: see [`docs/deployment.md`](docs/deployment.md)                       |
-| Walkthrough video, public repository history     |   ⬜   | Script in [`docs/demo.md`](docs/demo.md); recording is manual                                    |
-| Optional creative feature                        |   ⬜   | Not added (practice mode and the builder are core requirements)                                  |
+| Area                                             | Status | Notes                                                                                                                                                                                                                                                    |
+| ------------------------------------------------ | :----: | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Contracts, deterministic core, backend, auth     |   ✅   | Automated tests, real MongoDB                                                                                                                                                                                                                            |
+| Research engine and generation pipeline          |   ✅   | Tested with fakes and fixture sites                                                                                                                                                                                                                      |
+| Web app: create, builder, regeneration, practice |   ✅   | Component tests with a mocked API; used by hand locally                                                                                                                                                                                                  |
+| Groq provider                                    |   🟨   | Mocked tests, plus **one** live run (valid kit, 45 s, 4 of 10 requests rate-limited and retried)                                                                                                                                                         |
+| Gemini provider                                  |   🟨   | Measured earlier; the free quota (20 requests a day) allows about two cases a day                                                                                                                                                                        |
+| Five cases in 15 minutes with a **real** model   |   ⬜   | Shown only with a fake model (26 s of pipeline overhead); not demonstrated live                                                                                                                                                                          |
+| Browser and cookie/CORS end-to-end tests         |   ⬜   | No Playwright; HTTP-level and jsdom tests only                                                                                                                                                                                                           |
+| Public deployment                                |   ✅   | **Live on Vercel** (Next.js and Express as two services) with a hosted MongoDB Atlas free cluster: https://ai-interview-prep-kit-green.vercel.app/. Checked with read-only requests (`/api/health`, `/api/ready`) and by hand; no automated browser test |
+| Walkthrough video, public repository history     |   ⬜   | Script in [`docs/demo.md`](docs/demo.md); recording is manual                                                                                                                                                                                            |
+| Optional creative feature                        |   ⬜   | Not added (practice mode and the builder are core requirements)                                                                                                                                                                                          |
 
 ⚠️ **Known quality issue from the live Groq run:** every requirement was marked `nice` although the posting said
 "required", and no behavioural questions were produced. One run of one small model; see
@@ -501,7 +507,24 @@ More, including a full manual acceptance checklist, is in [`docs/local-testing.m
 
 ## Deployment
 
-Prepared but not performed: a root `vercel.json` runs the Next.js app and the Express API as two Vercel services on
+```mermaid
+flowchart LR
+    U([🌐 Browser]) -->|"https://ai-interview-prep-kit-green.vercel.app"| V
+    subgraph V["▲ Vercel project (one domain)"]
+      direction TB
+      W["web: Next.js<br/>everything except /api"]
+      A["api: Express function<br/>/api/*"]
+    end
+    A --> M[("🍃 MongoDB Atlas<br/>database trao")]
+    A --> G{{"🤖 Groq<br/>openai/gpt-oss-20b"}}
+    A --> S{{"🌍 Company site<br/>+ Hacker News"}}
+```
+
+Limits of this deployment (also in [`docs/deployment.md`](docs/deployment.md)): production only, no preview deployments;
+jobs run inside one function invocation and are failed after 6 idle minutes, so a very slow generation can time out;
+the free tiers of the hosting and database plans have their own limits; the model quota is the Groq free quota.
+
+**Live:** https://ai-interview-prep-kit-green.vercel.app/ (Vercel production, database on MongoDB Atlas). A root `vercel.json` runs the Next.js app and the Express API as two Vercel services on
 one domain (`/api/*` goes to the API), and `apps/api/src/server.ts` is the serverless entry. See
 [`docs/deployment.md`](docs/deployment.md) for the architecture, every
 environment variable (placeholders only), the cookie/CORS settings, the steps and what is unverified. A
