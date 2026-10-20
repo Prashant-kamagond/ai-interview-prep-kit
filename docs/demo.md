@@ -11,7 +11,7 @@ second pass that closes a coverage gap. They use a fake model and local fixture 
 
 ```bash
 pnpm test                                    # unit tests, no database
-pnpm test:integration                        # real MongoDB (docker compose up -d mongo first)
+pnpm test:integration                        # real MongoDB (make db first)
 pnpm vitest run packages/pipeline/src/batch.test.ts
 pnpm vitest run scripts/evaluate.test.ts     # the batch command, failure codes, output file
 ```
@@ -20,7 +20,7 @@ There is no switch that runs the web app itself against a fake model, and none i
 override in the server would be a way to bypass the real provider in production).
 
 **Live (your key, uses quota).** For the video the app has to generate for real: set `LLM_API_KEY` in your own
-`.env`, then `docker compose up -d mongo` and `pnpm dev`. The free quota is small (README, "LLM provider"), so
+`.env`, then `make db` and `pnpm dev`. The free quota is small (README, "LLM provider"), so
 rehearse with one case and a short schedule, and do not run the five-case batch right before filming.
 
 ## Script (about 3.5 minutes)

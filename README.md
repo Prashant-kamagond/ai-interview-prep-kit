@@ -471,7 +471,7 @@ throwaway database per test file on the same MongoDB; CI runs them against a `mo
 
 ## MongoDB and MongoDB Compass
 
-MongoDB runs from `compose.yaml` (service `mongo`, image `mongo:8`), published only on
+MongoDB runs from `docker/compose.yaml` (service `mongo`, image `mongo:8`), published only on
 `127.0.0.1:27018` (`MONGO_PORT`), with authentication on. The application database is **`trao`**; collections are
 `users`, `sessions`, `kits`, `generation_jobs` and `practice_cards`. A kit's `_id` is an **ObjectId** (not a string),
 the owner is `userId`, and the Appendix A kit is embedded as the `kit` field beside `builder` and `research`.

@@ -6,6 +6,11 @@
 #   winget install ezwinports.make
 # then open a NEW terminal. (GnuWin32.Make or `choco install make` also work.)
 
+# The compose file lives in docker/. Compose names a project after the folder of its compose file, which would
+# make it ignore the existing database volume (ai-interview-prep_mongo-data) and the root .env, so both are
+# pinned here: -p keeps the project name, --env-file reads the root .env.
+COMPOSE = docker compose -p ai-interview-prep --env-file .env -f docker/compose.yaml
+
 .DEFAULT_GOAL := help
 .PHONY: help setup env install db db-stop db-logs dev status check verify build build-production \
         lint format format-check typecheck test test-integration test-e2e evaluate up down clean
@@ -60,19 +65,19 @@ node_modules/.installed: package.json pnpm-lock.yaml
 
 # --- MongoDB (Docker) ---------------------------------------------------------------------------------
 
-# Starts the `mongo` service from compose.yaml and waits for its health check. Data lives in a Docker volume
+# Starts the `mongo` service from docker/compose.yaml and waits for its health check. Data lives in a Docker volume
 # and survives db-stop and down.
 db: .env
-	docker compose up -d --wait mongo
+	$(COMPOSE) up -d --wait mongo
 
 db-stop:
-	docker compose stop mongo
+	$(COMPOSE) stop mongo
 
 db-logs:
-	docker compose logs --tail 50 mongo
+	$(COMPOSE) logs --tail 50 mongo
 
 status:
-	docker compose ps
+	$(COMPOSE) ps
 	@node -e "const t=(n,u)=>fetch(u,{signal:AbortSignal.timeout(2000)}).then(r=>console.log(n,'answers',r.status),()=>console.log(n,'is NOT answering'));Promise.all([t('API  http://localhost:4000/ready','http://localhost:4000/ready'),t('Web  http://localhost:3000/login','http://localhost:3000/login')])"
 
 # --- checks -------------------------------------------------------------------------------------------
@@ -125,7 +130,7 @@ up: db
 
 # Stops and removes the containers. The database volume is kept (this never uses -v).
 down:
-	docker compose down
+	$(COMPOSE) down
 
 clean:
 	node -e "for (const d of ['node_modules','apps/web/.next','coverage']) require('fs').rmSync(d,{recursive:true,force:true})"

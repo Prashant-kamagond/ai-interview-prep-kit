@@ -31,21 +31,21 @@ already in the lockfile).
 ## 2. Start MongoDB
 
 ```powershell
-docker compose ps                  # is the mongo service already running?
-docker compose up -d mongo         # start it (needs MONGO_ROOT_USER and MONGO_ROOT_PASSWORD in .env)
-docker compose ps                  # State should be "running" / "healthy"
-docker compose exec mongo mongosh --quiet --eval "db.adminCommand('ping').ok"
+make status                        # is the mongo service already running?
+make db                            # start it and wait until healthy (needs MONGO_ROOT_USER and MONGO_ROOT_PASSWORD in .env)
+make status                        # State should be "running" / "healthy"
+docker compose -p ai-interview-prep -f docker/compose.yaml exec mongo mongosh --quiet --eval "db.adminCommand('ping').ok"
 ```
 
-Success: `docker compose ps` shows the mongo service healthy, and the last command prints `1`.
+Success: `make status` shows the mongo service healthy, and the last command prints `1`.
 
-**Port.** `compose.yaml` publishes MongoDB on `127.0.0.1:${MONGO_PORT:-27017}`. A container named
+**Port.** `docker/compose.yaml` publishes MongoDB on `127.0.0.1:${MONGO_PORT:-27017}`. A container named
 `ai-interview-prep-mongo-1` was seen on host port **27018** on this machine, so your `.env` probably has
 `MONGO_PORT=27018`. Whatever the port is, `MONGODB_URI` and `TEST_MONGODB_URI` in `.env` must use the same one. To see
 the port without printing credentials:
 
 ```powershell
-docker compose port mongo 27017
+docker compose -p ai-interview-prep -f docker/compose.yaml port mongo 27017
 ```
 
 ## 3. Configure the environment without exposing secrets
@@ -231,7 +231,7 @@ node -e "const r=JSON.parse(require('fs').readFileSync(process.env.TEMP+'/kits-t
 - **API logs** are the `pnpm dev` window (structured JSON, one line per event; secrets are redacted). Set
   `LOG_LEVEL=debug` in `.env` and restart for more detail.
 - **Web logs**: the same window (Next.js) and the browser Console/Network tabs.
-- **MongoDB logs**: `docker compose logs --tail 50 mongo`.
+- **MongoDB logs**: `make db-logs`.
 
 | Symptom                                                         | Likely cause and check                                                                                     |
 | --------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
@@ -299,7 +299,7 @@ Send, for each failure:
 2. **Expected vs actual** in one sentence each.
 3. **The command** you ran and its **exit code**, or the exact steps in the browser (URL, buttons, data typed;
    use made-up data).
-4. **The error output**: the last 20 to 40 lines of the relevant window or `docker compose logs --tail 40 mongo`,
+4. **The error output**: the last 20 to 40 lines of the relevant window or `make db-logs`,
    and for browser problems the red Console lines and the failing request's **method, URL and status** from the
    Network tab (not its headers or cookies).
 5. **Environment**: `node -v`, `pnpm -v`, browser and version, whether MongoDB is the compose container.
